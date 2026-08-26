@@ -1,23 +1,15 @@
-ZamexCards Batch Productfoto Bewerker v2
-========================================
+ZamexCards Fotobatchbewerker v3
+===============================
 
-Nieuw in v2:
-- ZamexCards vaste studio-uitsnede, afgesteld op de aangeleverde voor/na voorbeelden.
-- Voor- en achterkant worden per kaart gekoppeld: 1+2 = 001, 3+4 = 002, enz.
-- Uitvoer standaard 1000 x 1000 pixels.
-- Transparant ZamexCards-watermerk automatisch rechtsonder.
-- Naam, set en kaartnummer kunnen automatisch worden geprobeerd via OCR en vóór export worden aangepast.
-- Bestandsnamen: 001 Kaartnaam (SET 123) - Voorkant/Achterkant.png
-- Alles in één ZIP.
+Nieuw in v3:
+- Automatische kaartcentrering is nu standaard.
+- De kaartranden worden per foto gezocht; de bronfoto mag dus iets hoger/lager/links/rechts staan.
+- Doelpositie is afgestemd op de goede ZamexCards productvoorbeelden: kaart bijna bovenaan, horizontaal gecentreerd en groene houder zichtbaar.
+- Originele kleuren worden behouden: geen helderheid-, contrast-, verzadiging- of witbalanscorrectie.
+- PNG blijft standaard voor zo min mogelijk kwaliteitsverlies.
+- Als automatische detectie onzeker is, valt de tool terug op de eerder uitgemeten vaste studio-uitsnede.
+- Watermerk, nummering, voor/achter-koppeling en ZIP-export blijven behouden.
 
-Gebruik via GitHub Pages:
-1. Upload index.html naar een GitHub repository.
-2. Zet GitHub Pages aan voor de repository.
-3. Open de Pages-link in Chrome/Edge.
-4. Selecteer foto's in de vaste volgorde: voorkant, achterkant, volgende voorkant, achterkant.
-5. Selecteer één keer je transparante ZamexCards-logo.
-6. Laat 'ZamexCards vaste studio-uitsnede' geselecteerd.
-7. Controleer kaartgegevens en download de ZIP.
-
-Opmerking:
-De vaste studio-uitsnede is gekalibreerd op de voorbeeldfoto's met bronformaat 1153 x 2048 en schaalt proportioneel mee.
+GitHub Pages:
+Vervang de bestaande index.html in repository Fotobatchbewerker door deze index.html.
+De URL kan daarna hetzelfde blijven: https://zamexcards.github.io/Fotobatchbewerker/

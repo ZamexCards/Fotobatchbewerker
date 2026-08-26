@@ -3,31 +3,117 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Batch Productfoto Bewerker v2</title>
+<title>ZamexCards Fotobatchbewerker</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
-:root{--green:#16c45b;--blue:#0878d8;--dark:#0b1f33;--light:#f5fbff;--border:#d7e5ef;--warn:#ffb020}
-*{box-sizing:border-box} body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#e9fff1,#eef7ff);color:#142536}
-header{background:linear-gradient(90deg,var(--green),var(--blue));color:#fff;padding:22px 24px;box-shadow:0 3px 16px rgba(0,0,0,.14)}
-header h1{margin:0;font-size:28px} header p{margin:6px 0 0;opacity:.95}
-main{max-width:1280px;margin:24px auto;padding:0 16px 40px}
-.panel{background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:18px;box-shadow:0 7px 24px rgba(17,48,72,.08)}
-.row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.row.two{grid-template-columns:1fr 1fr}
-@media(max-width:900px){.row,.row.two{grid-template-columns:1fr}}
-label{font-weight:700;font-size:14px;display:block;margin-bottom:7px} input,select,button{font:inherit}
-input[type=file],input[type=text],input[type=number],select{width:100%;padding:11px;border:1px solid #bdd0dd;border-radius:10px;background:#fff}
-button{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}.primary{background:linear-gradient(90deg,var(--green),#0fa448);color:#fff}.secondary{background:linear-gradient(90deg,var(--blue),#075da8);color:#fff}.danger{background:#e74b4b;color:#fff}.ghost{background:#edf4f8;color:#14324b}
-.help{font-size:13px;color:#587083;margin-top:6px;line-height:1.45}.status{padding:10px 12px;border-radius:10px;background:#eef7ff;border:1px solid #cfe8ff;margin-top:12px}.warn{background:#fff8e8;border-color:#ffe1a1}.ok{background:#edfff3;border-color:#b9f0ca}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}.card{border:1px solid var(--border);border-radius:14px;padding:12px;background:#fbfdff}.thumbs{display:grid;grid-template-columns:1fr 1fr;gap:8px}.thumb{aspect-ratio:1/1;background:#eef3f6;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}.thumb img{width:100%;height:100%;object-fit:contain}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.meta .wide{grid-column:1/-1}
-.progress{height:12px;background:#e6edf2;border-radius:999px;overflow:hidden;margin-top:10px}.bar{height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--blue))}
-.small{font-size:12px}.tag{display:inline-block;padding:4px 8px;border-radius:999px;background:#eaf4ff;margin-right:5px;font-size:12px;font-weight:700}.footer-actions{display:flex;gap:10px;flex-wrap:wrap}
+:root{
+  --green:#47d45b;
+  --green2:#2fbe4d;
+  --blue:#0d3e69;
+  --blue2:#082c4a;
+  --navy:#031f35;
+  --panel:#0b3a63;
+  --panel2:#0a3459;
+  --line:#43d56c;
+  --lineSoft:#2c6b94;
+  --text:#ffffff;
+  --muted:#cfe1ee;
+  --warn:#f7b83d;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,Helvetica,sans-serif;
+  background:linear-gradient(180deg,#031a2c 0%,#052744 55%,#031d32 100%);
+  color:var(--text);
+  min-height:100vh;
+}
+header{
+  background:linear-gradient(180deg,#082b49 0%,#06385d 100%);
+  color:#fff;
+  padding:22px 24px;
+  border-bottom:2px solid var(--line);
+  box-shadow:0 8px 24px rgba(0,0,0,.28);
+}
+header h1{margin:0;font-size:30px;font-weight:800;letter-spacing:-.4px}
+header p{margin:7px 0 0;color:#d4e7f3;font-size:15px}
+main{max-width:1280px;margin:26px auto;padding:0 16px 42px}
+.panel{
+  background:linear-gradient(180deg,var(--panel) 0%,var(--panel2) 100%);
+  border:1.5px solid var(--line);
+  border-radius:28px;
+  padding:24px;
+  margin-bottom:20px;
+  box-shadow:0 10px 30px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.03);
+}
+.row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.row.two{grid-template-columns:1fr 1fr}
+@media(max-width:900px){.row,.row.two{grid-template-columns:1fr}.panel{border-radius:22px;padding:18px}header h1{font-size:25px}}
+label{font-weight:800;font-size:14px;display:block;margin-bottom:8px;color:#fff}
+input,select,button{font:inherit}
+input[type=file],input[type=text],input[type=number],select{
+  width:100%;
+  padding:12px 13px;
+  border:1.5px solid #5e87a7;
+  border-radius:14px;
+  background:#0a2f50;
+  color:#fff;
+  outline:none;
+}
+input::file-selector-button{
+  background:#143f65;color:#fff;border:0;border-radius:9px;padding:8px 10px;margin-right:10px;font-weight:700;cursor:pointer;
+}
+input:focus,select:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(71,212,91,.13)}
+option{background:#0a2f50;color:#fff}
+button{
+  border:0;
+  border-radius:16px;
+  padding:13px 18px;
+  font-weight:800;
+  cursor:pointer;
+  min-height:50px;
+  transition:transform .12s ease,filter .12s ease;
+}
+button:hover{filter:brightness(1.05);transform:translateY(-1px)}
+.primary{background:linear-gradient(180deg,#4dd85f 0%,#36c64f 100%);color:#fff;box-shadow:0 5px 14px rgba(54,198,79,.2)}
+.secondary{background:linear-gradient(180deg,#31a8ee 0%,#2499df 100%);color:#fff}
+.danger{background:#e74b4b;color:#fff}
+.ghost{background:#103d63;color:#fff;border:1.5px solid #557b9d}
+.help{font-size:13px;color:var(--muted);margin-top:7px;line-height:1.5}
+.status{
+  padding:16px 18px;
+  border-radius:14px;
+  background:#0a2f50;
+  border-left:6px solid var(--green);
+  margin-top:16px;
+  color:#fff;
+  font-size:15px;
+}
+.warn{background:#483715;border-color:#f2b437;color:#fff4cf}
+.ok{background:#0b3a50;border-color:#48d767}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px}
+.card{
+  border:1.5px solid #3f79a4;
+  border-radius:20px;
+  padding:14px;
+  background:linear-gradient(180deg,#0a3154,#082b49);
+  box-shadow:0 8px 18px rgba(0,0,0,.18)
+}
+.thumbs{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.thumb{aspect-ratio:1/1;background:#06233c;border:1px solid #315e82;border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#d9e9f5;font-weight:700}
+.thumb img{width:100%;height:100%;object-fit:contain}.meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}.meta .wide{grid-column:1/-1}
+.progress{height:13px;background:#071f34;border-radius:999px;overflow:hidden;margin-top:12px;border:1px solid #214b6d}
+.bar{height:100%;width:0;background:linear-gradient(90deg,#45d65d,#2da7ec)}
+.small{font-size:12px}.tag{display:inline-block;padding:5px 9px;border-radius:999px;background:#103d64;border:1px solid #487aa0;margin-right:5px;font-size:12px;font-weight:800;color:#fff}
+.footer-actions{display:flex;gap:12px;flex-wrap:wrap}.footer-actions button{flex:1;min-width:220px}
 canvas{display:none}
+h2{color:#fff;font-size:28px}
 </style>
 </head>
 <body>
 <header>
-  <h1>ZamexCards Batch Productfoto Bewerker v2</h1>
+  <h1>ZamexCards Fotobatchbewerker</h1>
   <p>Voorzijde + achterzijde koppelen, automatisch nummeren, ZamexCards-studio uitsnijden, watermerk toevoegen en alles als ZIP downloaden.</p>
 </header>
 <main>
@@ -66,8 +152,8 @@ canvas{display:none}
   <div class="row two" style="margin-top:14px">
     <div>
       <label>Kaart uitsnede</label>
-      <select id="cropMode"><option value="studio" selected>ZamexCards vaste studio-uitsnede (aanbevolen)</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
-      <div class="help">De studio-uitsnede is afgesteld op jouw voorbeeldfoto's: kaart groot in beeld, groene houder onderaan en een vierkante 1000 × 1000 productafbeelding.</div>
+      <select id="cropMode"><option value="auto" selected>Automatisch centreren op de kaart (aanbevolen)</option><option value="studio">ZamexCards vaste studio-uitsnede</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
+      <div class="help">Automatisch centreren zoekt eerst de linker-, rechter- en bovenrand van de kaart en zet de kaart daarna op dezelfde vaste positie als in jouw voorbeeldfoto's. Hierdoor mogen de bronfoto's iets hoger, lager, links of rechts zijn gemaakt.</div>
     </div>
     <div>
       <label>Naamherkenning</label>
@@ -75,6 +161,7 @@ canvas{display:none}
       <div class="help">Je kunt herkende gegevens altijd corrigeren vóór het downloaden.</div>
     </div>
   </div>
+  <div class="status ok" style="margin-top:14px"><strong>Originele kleuren behouden:</strong> er wordt standaard géén helderheid, contrast, verzadiging, witbalans of andere kleurcorrectie toegepast. Alleen uitsnijden, schalen en het watermerk toevoegen.</div>
 </section>
 
 <section class="panel">
@@ -134,21 +221,99 @@ $('recognize').onclick=async()=>{
  setStatus('Herkenning klaar. Controleer de gegevens en corrigeer indien nodig.','ok');
 }
 function safeName(s){return (s||'Onbekende kaart').replace(/[<>:"/\\|?*]+/g,'').replace(/\s+/g,' ').trim()}
+
+async function detectCardCrop(img){
+  // Analyseer een kleine kopie: sneller en stabieler dan op volledige resolutie.
+  const maxW=420;
+  const scale=Math.min(1,maxW/img.width);
+  const w=Math.max(120,Math.round(img.width*scale));
+  const h=Math.max(180,Math.round(img.height*scale));
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const x=c.getContext('2d',{willReadFrequently:true,colorSpace:'srgb'});
+  x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high'; x.filter='none';
+  x.drawImage(img,0,0,w,h);
+  const d=x.getImageData(0,0,w,h).data;
+  const gray=new Float32Array(w*h);
+  for(let i=0,j=0;i<d.length;i+=4,j++) gray[j]=0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2];
+  const vscore=new Float32Array(w);
+  const y1=Math.floor(h*.12), y2=Math.floor(h*.72);
+  for(let xx=2;xx<w-2;xx++){
+    let sum=0,n=0;
+    for(let yy=y1;yy<y2;yy+=2){
+      const k=yy*w+xx;
+      sum += Math.abs(gray[k+1]-gray[k-1]); n++;
+    }
+    vscore[xx]=sum/Math.max(1,n);
+  }
+  const smooth=(a,i,r=3)=>{let s=0,n=0;for(let j=Math.max(0,i-r);j<=Math.min(a.length-1,i+r);j++){s+=a[j];n++;}return s/n};
+  let left=0,right=w-1,ls=-1,rs=-1;
+  for(let xx=Math.floor(w*.10);xx<Math.floor(w*.48);xx++){const q=smooth(vscore,xx); if(q>ls){ls=q;left=xx}}
+  for(let xx=Math.floor(w*.52);xx<Math.floor(w*.90);xx++){const q=smooth(vscore,xx); if(q>rs){rs=q;right=xx}}
+  let cardW=right-left;
+  // Een Pokémonkaart in deze studio hoort ongeveer 35-65% van de fotobreedte te zijn.
+  // Als de randdetectie daarbuiten valt, gebruik de betrouwbare vaste studio-crop als fallback.
+  if(cardW<w*.30 || cardW>w*.70 || ls<4 || rs<4) return null;
+  const hscore=new Float32Array(h);
+  const ix1=Math.max(2,Math.floor(left+cardW*.08)), ix2=Math.min(w-3,Math.floor(right-cardW*.08));
+  for(let yy=2;yy<h-2;yy++){
+    let sum=0,n=0;
+    for(let xx=ix1;xx<ix2;xx+=2){const k=yy*w+xx;sum += Math.abs(gray[k+w]-gray[k-w]);n++;}
+    hscore[yy]=sum/Math.max(1,n);
+  }
+  let top=0,ts=-1;
+  // In de ruwe studiofoto staat de bovenkant van de kaart gewoonlijk tussen 12% en 48% van de hoogte.
+  for(let yy=Math.floor(h*.10);yy<Math.floor(h*.50);yy++){const q=smooth(hscore,yy,2); if(q>ts){ts=q;top=yy}}
+  if(ts<4) return null;
+  // Standaard Pokémonkaart: breedte/hoogte ≈ 63/88. Gebruik de breedte om de onderrand te voorspellen,
+  // zodat de groene houder niet per ongeluk als kaartrand wordt gezien.
+  const cardH=cardW/(63/88);
+  const bottom=top+cardH;
+  if(bottom>h*.92 || cardH<h*.38 || cardH>h*.68) return null;
+  // Doelpositie uit de goede ZamexCards voorbeelden: kaart bijna bovenaan, horizontaal gecentreerd,
+  // kaarthoogte circa 89% van het 1000x1000 eindbeeld en groene houder zichtbaar onderaan.
+  const targetTop=.015, targetHeight=.89, targetCenterX=.50;
+  const cropSide=cardH/targetHeight;
+  let cropX=((left+right)/2)-targetCenterX*cropSide;
+  let cropY=top-targetTop*cropSide;
+  // Vertaal naar originele resolutie.
+  cropX/=scale; cropY/=scale;
+  let side=cropSide/scale;
+  side=Math.min(side,img.width,img.height);
+  cropX=Math.max(0,Math.min(cropX,img.width-side));
+  cropY=Math.max(0,Math.min(cropY,img.height-side));
+  return {x:cropX,y:cropY,side,confidence:Math.min(ls,rs,ts)};
+}
+
 async function render(file, kind='front'){
- const img=await loadImage(file), c=$('canvas'),ctx=c.getContext('2d'); c.width=1000;c.height=1000;ctx.clearRect(0,0,1000,1000);ctx.fillStyle='#fff';ctx.fillRect(0,0,1000,1000);
+ const img=await loadImage(file), c=$('canvas');
+ c.width=1000;c.height=1000;
+ const ctx=c.getContext('2d',{alpha:false,colorSpace:'srgb'});
+ ctx.clearRect(0,0,1000,1000);ctx.fillStyle='#fff';ctx.fillRect(0,0,1000,1000);
+ // Geen kleurfilters: verkoopfoto's moeten de originele opname zo natuurgetrouw mogelijk volgen.
+ ctx.filter='none'; ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+ ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
  const mode=$('cropMode').value; let sx=0,sy=0,sw=img.width,sh=img.height;
- if(mode==='studio'){
-   // Afgesteld aan de hand van de aangeleverde ZamexCards voor/na voorbeelden.
-   // Voorzijde en achterzijde hadden in de voorbeeldserie een iets andere handmatige crop.
+ if(mode==='auto'){
+   const detected=await detectCardCrop(img);
+   if(detected){sx=detected.x;sy=detected.y;sw=sh=detected.side;}
+   else {
+     // Fallback naar de eerder exact uitgemeten ZamexCards-crop.
+     const refW=1153, refH=2048;
+     const cfg = kind==='back'
+       ? {x:221.68/refW, y:506.92/refH, side:694.49/refW}
+       : {x:227.60/refW, y:524.40/refH, side:671.32/refW};
+     const side=Math.min(img.width*cfg.side,img.height); sx=img.width*cfg.x; sy=img.height*cfg.y; sw=sh=side;
+     sx=Math.max(0,Math.min(sx,img.width-sw)); sy=Math.max(0,Math.min(sy,img.height-sh));
+   }
+   ctx.drawImage(img,sx,sy,sw,sh,0,0,1000,1000);
+ } else if(mode==='studio'){
    const refW=1153, refH=2048;
    const cfg = kind==='back'
      ? {x:221.68/refW, y:506.92/refH, side:694.49/refW}
      : {x:227.60/refW, y:524.40/refH, side:671.32/refW};
    const side=Math.min(img.width*cfg.side, img.height);
    sx=img.width*cfg.x; sy=img.height*cfg.y; sw=sh=side;
-   // Binnen de foto blijven wanneer een telefoon nét anders uitsnijdt.
-   sx=Math.max(0,Math.min(sx,img.width-sw));
-   sy=Math.max(0,Math.min(sy,img.height-sh));
+   sx=Math.max(0,Math.min(sx,img.width-sw)); sy=Math.max(0,Math.min(sy,img.height-sh));
    ctx.drawImage(img,sx,sy,sw,sh,0,0,1000,1000);
  } else if(mode==='center'){
    const side=Math.min(img.width,img.height); sx=(img.width-side)/2; sy=(img.height-side)/2; sw=sh=side; ctx.drawImage(img,sx,sy,sw,sh,0,0,1000,1000);
