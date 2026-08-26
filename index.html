@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ZamexCards Batch Productfoto Bewerker v2</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+:root{--green:#16c45b;--blue:#0878d8;--dark:#0b1f33;--light:#f5fbff;--border:#d7e5ef;--warn:#ffb020}
+*{box-sizing:border-box} body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#e9fff1,#eef7ff);color:#142536}
+header{background:linear-gradient(90deg,var(--green),var(--blue));color:#fff;padding:22px 24px;box-shadow:0 3px 16px rgba(0,0,0,.14)}
+header h1{margin:0;font-size:28px} header p{margin:6px 0 0;opacity:.95}
+main{max-width:1280px;margin:24px auto;padding:0 16px 40px}
+.panel{background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:18px;box-shadow:0 7px 24px rgba(17,48,72,.08)}
+.row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.row.two{grid-template-columns:1fr 1fr}
+@media(max-width:900px){.row,.row.two{grid-template-columns:1fr}}
+label{font-weight:700;font-size:14px;display:block;margin-bottom:7px} input,select,button{font:inherit}
+input[type=file],input[type=text],input[type=number],select{width:100%;padding:11px;border:1px solid #bdd0dd;border-radius:10px;background:#fff}
+button{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}.primary{background:linear-gradient(90deg,var(--green),#0fa448);color:#fff}.secondary{background:linear-gradient(90deg,var(--blue),#075da8);color:#fff}.danger{background:#e74b4b;color:#fff}.ghost{background:#edf4f8;color:#14324b}
+.help{font-size:13px;color:#587083;margin-top:6px;line-height:1.45}.status{padding:10px 12px;border-radius:10px;background:#eef7ff;border:1px solid #cfe8ff;margin-top:12px}.warn{background:#fff8e8;border-color:#ffe1a1}.ok{background:#edfff3;border-color:#b9f0ca}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}.card{border:1px solid var(--border);border-radius:14px;padding:12px;background:#fbfdff}.thumbs{display:grid;grid-template-columns:1fr 1fr;gap:8px}.thumb{aspect-ratio:1/1;background:#eef3f6;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}.thumb img{width:100%;height:100%;object-fit:contain}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.meta .wide{grid-column:1/-1}
+.progress{height:12px;background:#e6edf2;border-radius:999px;overflow:hidden;margin-top:10px}.bar{height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--blue))}
+.small{font-size:12px}.tag{display:inline-block;padding:4px 8px;border-radius:999px;background:#eaf4ff;margin-right:5px;font-size:12px;font-weight:700}.footer-actions{display:flex;gap:10px;flex-wrap:wrap}
+canvas{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>ZamexCards Batch Productfoto Bewerker v2</h1>
+  <p>Voorzijde + achterzijde koppelen, automatisch nummeren, ZamexCards-studio uitsnijden, watermerk toevoegen en alles als ZIP downloaden.</p>
+</header>
+<main>
+<section class="panel">
+  <div class="row">
+    <div>
+      <label>1. Foto's toevoegen</label>
+      <input id="photos" type="file" accept="image/*" multiple>
+      <div class="help">Volgorde: voorkant, achterkant, volgende voorkant, volgende achterkant, enz.</div>
+    </div>
+    <div>
+      <label>2. Transparant ZamexCards-logo</label>
+      <input id="watermark" type="file" accept="image/png,image/webp">
+      <div class="help">PNG met transparante achtergrond werkt het beste. Het logo wordt rechtsonder geplaatst.</div>
+    </div>
+    <div>
+      <label>Uitvoerformaat</label>
+      <select id="format"><option value="png">PNG</option><option value="jpg">JPG</option></select>
+      <div class="help">Standaard 1000 × 1000 pixels.</div>
+    </div>
+    <div>
+      <label>Startnummer</label>
+      <input id="startNo" type="number" min="1" value="1">
+      <div class="help">Wordt automatisch 001, 002, 003...</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="row">
+    <div><label>Watermerk breedte</label><input id="wmSize" type="number" min="5" max="50" value="18"><div class="help">Percentage van de afbeeldingbreedte.</div></div>
+    <div><label>Transparantie</label><input id="wmOpacity" type="number" min="5" max="100" value="35"><div class="help">35% is een rustige standaard.</div></div>
+    <div><label>Marge rechts</label><input id="wmRight" type="number" min="0" max="200" value="20"><div class="help">Pixels vanaf rechterrand.</div></div>
+    <div><label>Marge onder</label><input id="wmBottom" type="number" min="0" max="200" value="20"><div class="help">Pixels vanaf onderrand.</div></div>
+  </div>
+  <div class="row two" style="margin-top:14px">
+    <div>
+      <label>Kaart uitsnede</label>
+      <select id="cropMode"><option value="studio" selected>ZamexCards vaste studio-uitsnede (aanbevolen)</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
+      <div class="help">De studio-uitsnede is afgesteld op jouw voorbeeldfoto's: kaart groot in beeld, groene houder onderaan en een vierkante 1000 × 1000 productafbeelding.</div>
+    </div>
+    <div>
+      <label>Naamherkenning</label>
+      <select id="ocrMode"><option value="on">Probeer automatisch naam / set / kaartnummer te lezen</option><option value="off">Niet automatisch lezen</option></select>
+      <div class="help">Je kunt herkende gegevens altijd corrigeren vóór het downloaden.</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="footer-actions">
+    <button id="prepare" class="secondary">Foto's koppelen</button>
+    <button id="recognize" class="ghost">Gegevens automatisch herkennen</button>
+    <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
+  </div>
+  <div id="status" class="status">Nog geen foto's geladen.</div>
+  <div class="progress"><div id="bar" class="bar"></div></div>
+</section>
+
+<section class="panel">
+  <h2 style="margin-top:0">Controle vóór export</h2>
+  <div class="help" style="margin-bottom:14px">Elke twee foto's vormen één kaart. Controleer vooral de naam, setcode en het kaartnummer.</div>
+  <div id="cards" class="cards"></div>
+</section>
+</main>
+<canvas id="canvas" width="1000" height="1000"></canvas>
+<script>
+const $=id=>document.getElementById(id);
+let pairs=[]; let watermarkImg=null;
+function pad(n){return String(n).padStart(3,'0')}
+function setStatus(msg,type=''){const el=$('status');el.textContent=msg;el.className='status '+type}
+function loadImage(file){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=URL.createObjectURL(file)})}
+function dataURL(file){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file)})}
+$('watermark').addEventListener('change',async e=>{if(e.target.files[0]){watermarkImg=await loadImage(e.target.files[0]);setStatus('Watermerk geladen.','ok')}})
+$('prepare').onclick=async()=>{
+ const files=[...$('photos').files]; if(!files.length){setStatus('Selecteer eerst foto\'s.','warn');return}
+ if(files.length%2!==0)setStatus(`Let op: ${files.length} foto\'s geladen. De laatste foto heeft geen partner.`,'warn'); else setStatus(`${files.length} foto\'s geladen = ${files.length/2} kaarten.`,'ok');
+ pairs=[]; const start=Number($('startNo').value||1); const wrap=$('cards'); wrap.innerHTML='';
+ for(let i=0;i<files.length;i+=2){
+   const p={num:start+(i/2),front:files[i],back:files[i+1]||null,name:'',set:'',cardno:''}; pairs.push(p);
+   const frontURL=await dataURL(p.front), backURL=p.back?await dataURL(p.back):'';
+   const div=document.createElement('div');div.className='card';div.dataset.index=pairs.length-1;
+   div.innerHTML=`<div><span class="tag">${pad(p.num)}</span><span class="tag">Voor + Achter</span></div>
+   <div class="thumbs" style="margin-top:8px"><div class="thumb"><img src="${frontURL}"></div><div class="thumb">${backURL?`<img src="${backURL}">`:'ONTBREEKT'}</div></div>
+   <div class="meta"><div class="wide"><label>Pokémon / kaartnaam</label><input class="name" type="text" placeholder="Mega Greninja ex"></div><div><label>Set</label><input class="set" type="text" placeholder="CRI"></div><div><label>Kaartnummer</label><input class="cardno" type="text" placeholder="122"></div></div>`;
+   wrap.appendChild(div);
+ }
+}
+function syncInputs(){document.querySelectorAll('.card').forEach(card=>{const p=pairs[+card.dataset.index];p.name=card.querySelector('.name').value.trim();p.set=card.querySelector('.set').value.trim().toUpperCase();p.cardno=card.querySelector('.cardno').value.trim()})}
+async function ocrFront(pair){
+ const img=await loadImage(pair.front); const c=document.createElement('canvas'); const ctx=c.getContext('2d');
+ const scale=Math.min(1,1200/img.width); c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);ctx.drawImage(img,0,0,c.width,c.height);
+ const res=await Tesseract.recognize(c,'eng',{logger:m=>{if(m.status==='recognizing text')$('bar').style.width=(m.progress*100)+'%'}}); const text=res.data.text.replace(/\r/g,' ');
+ const lines=text.split('\n').map(s=>s.trim()).filter(Boolean);
+ let name=''; for(const line of lines.slice(0,8)){if(/\b(ex|EX|V|VMAX|VSTAR|GX)\b/.test(line)||/^[A-Za-z][A-Za-z .'-]{3,25}$/.test(line)){name=line.replace(/\s+HP\s*\d+.*/i,'').replace(/\s{2,}/g,' ').trim(); if(name.length>2)break}}
+ const numMatch=text.match(/\b(\d{1,3})\s*\/\s*(\d{2,3})\b/);
+ let set=''; const setMatches=[...text.matchAll(/\b[A-Z]{2,5}\b/g)].map(m=>m[0]).filter(x=>!['HP','BASIC','STAGE','ABILITY','ENERGY','POKEMON'].includes(x)); if(setMatches.length)set=setMatches[setMatches.length-1];
+ return {name:name||pair.name,set:set||pair.set,cardno:numMatch?numMatch[1]:pair.cardno};
+}
+$('recognize').onclick=async()=>{
+ if(!pairs.length){await $('prepare').onclick(); if(!pairs.length)return} if($('ocrMode').value==='off'){setStatus('Automatische herkenning staat uit.','warn');return}
+ setStatus('Naam, set en kaartnummer worden herkend. Dit kan even duren...');
+ for(let i=0;i<pairs.length;i++){const r=await ocrFront(pairs[i]);Object.assign(pairs[i],r);const card=document.querySelector(`.card[data-index="${i}"]`);card.querySelector('.name').value=pairs[i].name;card.querySelector('.set').value=pairs[i].set;card.querySelector('.cardno').value=pairs[i].cardno;$('bar').style.width=((i+1)/pairs.length*100)+'%'}
+ setStatus('Herkenning klaar. Controleer de gegevens en corrigeer indien nodig.','ok');
+}
+function safeName(s){return (s||'Onbekende kaart').replace(/[<>:"/\\|?*]+/g,'').replace(/\s+/g,' ').trim()}
+async function render(file, kind='front'){
+ const img=await loadImage(file), c=$('canvas'),ctx=c.getContext('2d'); c.width=1000;c.height=1000;ctx.clearRect(0,0,1000,1000);ctx.fillStyle='#fff';ctx.fillRect(0,0,1000,1000);
+ const mode=$('cropMode').value; let sx=0,sy=0,sw=img.width,sh=img.height;
+ if(mode==='studio'){
+   // Afgesteld aan de hand van de aangeleverde ZamexCards voor/na voorbeelden.
+   // Voorzijde en achterzijde hadden in de voorbeeldserie een iets andere handmatige crop.
+   const refW=1153, refH=2048;
+   const cfg = kind==='back'
+     ? {x:221.68/refW, y:506.92/refH, side:694.49/refW}
+     : {x:227.60/refW, y:524.40/refH, side:671.32/refW};
+   const side=Math.min(img.width*cfg.side, img.height);
+   sx=img.width*cfg.x; sy=img.height*cfg.y; sw=sh=side;
+   // Binnen de foto blijven wanneer een telefoon nét anders uitsnijdt.
+   sx=Math.max(0,Math.min(sx,img.width-sw));
+   sy=Math.max(0,Math.min(sy,img.height-sh));
+   ctx.drawImage(img,sx,sy,sw,sh,0,0,1000,1000);
+ } else if(mode==='center'){
+   const side=Math.min(img.width,img.height); sx=(img.width-side)/2; sy=(img.height-side)/2; sw=sh=side; ctx.drawImage(img,sx,sy,sw,sh,0,0,1000,1000);
+ } else {const scale=Math.min(1000/img.width,1000/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(1000-w)/2,(1000-h)/2,w,h)}
+ if(watermarkImg){const pct=Number($('wmSize').value||18)/100;const w=1000*pct;const h=w*(watermarkImg.height/watermarkImg.width);const x=1000-w-Number($('wmRight').value||20);const y=1000-h-Number($('wmBottom').value||20);ctx.save();ctx.globalAlpha=Number($('wmOpacity').value||35)/100;ctx.drawImage(watermarkImg,x,y,w,h);ctx.restore()}
+ const fmt=$('format').value; return new Promise(r=>c.toBlob(r,fmt==='jpg'?'image/jpeg':'image/png',0.94));
+}
+$('download').onclick=async()=>{
+ if(!pairs.length){await $('prepare').onclick();if(!pairs.length)return} syncInputs(); if(!watermarkImg && $('watermark').files[0]) watermarkImg=await loadImage($('watermark').files[0]);
+ const zip=new JSZip(); setStatus('Afbeeldingen worden verwerkt...'); $('bar').style.width='0%'; let done=0,total=pairs.reduce((a,p)=>a+(p.back?2:1),0);
+ for(const p of pairs){const base=`${pad(p.num)} ${safeName(p.name)}${p.set||p.cardno?` (${safeName(p.set)}${p.set&&p.cardno?' ':''}${safeName(p.cardno)})`:''}`; const ext=$('format').value==='jpg'?'jpg':'png';
+   let b=await render(p.front,'front');zip.file(`${base} - Voorkant.${ext}`,b);done++;$('bar').style.width=(done/total*100)+'%';
+   if(p.back){b=await render(p.back,'back');zip.file(`${base} - Achterkant.${ext}`,b);done++;$('bar').style.width=(done/total*100)+'%';}
+ }
+ const blob=await zip.generateAsync({type:'blob'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ZamexCards-productfotos.zip';a.click();setStatus(`Klaar: ${total} afbeeldingen in ZIP.`, 'ok');
+}
+</script>
+</body></html>
