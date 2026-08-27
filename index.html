@@ -252,74 +252,133 @@ $('prepare').onclick=async()=>{
  }
 }
 function syncInputs(){document.querySelectorAll('.card').forEach(card=>{const p=pairs[+card.dataset.index];p.name=card.querySelector('.name').value.trim();p.set=card.querySelector('.set').value.trim().toUpperCase();p.cardno=card.querySelector('.cardno').value.trim()})}
-async function ocrCanvas(canvas, psm='6'){
-  const res=await Tesseract.recognize(canvas,'eng',{
+async function ocrCanvas(canvas, psm='7', whitelist=''){
+  const opts={
     logger:m=>{if(m.status==='recognizing text')$('bar').style.width=(m.progress*100)+'%'},
     tessedit_pageseg_mode:psm,
     preserve_interword_spaces:'1'
-  });
-  return (res?.data?.text||'').replace(/\r/g,' ');
+  };
+  if(whitelist) opts.tessedit_char_whitelist=whitelist;
+  const res=await Tesseract.recognize(canvas,'eng',opts);
+  return res?.data||{text:'',lines:[],words:[]};
 }
-function makeOcrCrop(img, rx, ry, rw, rh, outW=1400){
+function makeOcrCrop(img, rx, ry, rw, rh, outW=1800, strong=false){
   const c=document.createElement('canvas');
   const sx=Math.max(0,Math.round(img.width*rx));
   const sy=Math.max(0,Math.round(img.height*ry));
-  const sw=Math.min(img.width-sx,Math.round(img.width*rw));
-  const sh=Math.min(img.height-sy,Math.round(img.height*rh));
+  const sw=Math.max(1,Math.min(img.width-sx,Math.round(img.width*rw)));
+  const sh=Math.max(1,Math.min(img.height-sy,Math.round(img.height*rh)));
   const scale=outW/sw;
   c.width=outW; c.height=Math.max(1,Math.round(sh*scale));
   const x=c.getContext('2d',{willReadFrequently:true});
   x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
-  x.filter='grayscale(1) contrast(1.55) brightness(1.08)';
+  x.filter=strong?'grayscale(1) contrast(2.15) brightness(1.18)':'grayscale(1) contrast(1.65) brightness(1.10)';
   x.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
   x.filter='none';
   return c;
 }
-function cleanOcrName(text){
-  const banned=/\b(HP|BASIC|STAGE|TRAINER|ENERGY|ABILITY|RULE|WEAKNESS|RESISTANCE|RETREAT|ILLUS|POKEMON)\b/i;
-  const lines=text.split('\n').map(v=>v.trim()).filter(Boolean);
-  for(let line of lines){
-    line=line.replace(/\bHP\s*\d+.*$/i,'').replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ0-9 .,'’\-]+$/g,'').replace(/\s{2,}/g,' ').trim();
-    if(line.length<3 || line.length>34 || banned.test(line)) continue;
-    const letters=(line.match(/[A-Za-zÀ-ÿ]/g)||[]).length;
-    if(letters/Math.max(1,line.length)<0.65) continue;
-    const words=line.split(/\s+/);
-    if(words.length>5) continue;
-    return line;
-  }
+function cleanNameCandidate(line){
+  line=(line||'').replace(/\bHP\s*\d+.*$/i,'').replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ0-9 .,'’\-]+$/g,'').replace(/\s{2,}/g,' ').trim();
+  if(line.length<3 || line.length>32) return '';
+  if(/\b(HP|BASIC|STAGE|TRAINER|ENERGY|ABILITY|RULE|WEAKNESS|RESISTANCE|RETREAT|ILLUS|POKEMON)\b/i.test(line)) return '';
+  const letters=(line.match(/[A-Za-zÀ-ÿ]/g)||[]).length;
+  if(letters/Math.max(1,line.length)<0.72) return '';
+  if((line.match(/[^A-Za-zÀ-ÿ0-9 .,'’\-]/g)||[]).length) return '';
+  const words=line.split(/\s+/);
+  if(words.length>4) return '';
+  // Voorkom typische OCR-onzin: te veel losse 1-letterwoorden of bijna geen klinkers.
+  if(words.filter(w=>w.length===1).length>1) return '';
+  const alpha=line.toLowerCase().replace(/[^a-z]/g,'');
+  const vowels=(alpha.match(/[aeiouy]/g)||[]).length;
+  if(alpha.length>=6 && vowels/alpha.length<0.16) return '';
+  return line;
+}
+function bestNameFromData(data){
+  const lines=(data?.lines||[]).map(l=>({text:cleanNameCandidate(l.text),confidence:Number(l.confidence||0)})).filter(x=>x.text);
+  lines.sort((a,b)=>b.confidence-a.confidence);
+  const best=lines[0];
+  if(best && best.confidence>=58) return best.text;
+  // Alleen fallback op volledige tekst als die er als één duidelijke regel uitziet.
+  const t=cleanNameCandidate((data?.text||'').split('\n').map(v=>v.trim()).filter(Boolean)[0]||'');
+  return t && (data?.confidence||0)>=62 ? t : '';
+}
+function normalizeCardNo(v){
+  return String(v||'').replace(/[Oo]/g,'0').replace(/[Il]/g,'1').trim();
+}
+function extractCardNumber(text){
+  text=normalizeCardNo(text).replace(/\s+/g,' ');
+  let m=text.match(/(?:^|\D)(\d{1,3})\s*[\/|]\s*(\d{2,3})(?:\D|$)/);
+  if(m) return m[1];
   return '';
+}
+function normName(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'')}
+function similarity(a,b){
+  a=normName(a);b=normName(b); if(!a||!b)return 0;if(a===b)return 1;
+  const bigrams=s=>{const x=[];for(let i=0;i<s.length-1;i++)x.push(s.slice(i,i+2));return x};
+  const A=bigrams(a),B=bigrams(b);let hit=0,used=new Array(B.length).fill(false);
+  for(const g of A){for(let i=0;i<B.length;i++)if(!used[i]&&B[i]===g){used[i]=true;hit++;break}}
+  return (2*hit)/Math.max(1,A.length+B.length);
+}
+async function verifyWithTcgdex(name,cardno){
+  if(!name || !cardno) return null;
+  try{
+    const url=`https://api.tcgdex.net/v2/en/cards?localId=${encodeURIComponent(cardno)}`;
+    const r=await fetch(url,{cache:'no-store'}); if(!r.ok)return null;
+    const cards=await r.json(); if(!Array.isArray(cards)||!cards.length)return null;
+    let best=null,bestScore=0;
+    for(const c of cards){const sc=similarity(name,c.name);if(sc>bestScore){bestScore=sc;best=c}}
+    // Alleen vervangen als de match echt overtuigend is. Geen gokwerk.
+    if(!best || bestScore<0.60) return null;
+    const d=await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(best.id)}`,{cache:'no-store'});
+    const full=d.ok?await d.json():null;
+    return {name:best.name,cardno:String(best.localId||cardno),set:(full?.set?.id||'').toUpperCase(),setName:full?.set?.name||'',score:bestScore};
+  }catch(e){return null}
 }
 async function ocrFront(pair){
   const img=await loadImage(pair.front);
+  // Eerst exact dezelfde vaste studio-uitsnede gebruiken als bij de uiteindelijke export.
   const refW=1153, refH=2048;
-  const cardX=227.60/refW, cardY=524.40/refH, cardSide=671.32/refW;
-  const sidePx=img.width*cardSide;
-  const xPx=img.width*cardX, yPx=img.height*cardY;
-  const rx=xPx/img.width, ry=yPx/img.height, rw=sidePx/img.width, rh=sidePx/img.height;
+  const cfg={x:227.60/refW, y:524.40/refH, side:671.32/refW};
+  const side=Math.min(img.width*cfg.side,img.height);
+  const sx=Math.max(0,Math.min(img.width*cfg.x,img.width-side));
+  const sy=Math.max(0,Math.min(img.height*cfg.y + side*0.025,img.height-side));
+  const rx=sx/img.width, ry=sy/img.height, rw=side/img.width, rh=side/img.height;
 
-  const nameCrop=makeOcrCrop(img,rx,ry,rw,rh*0.24,1500);
-  const nameText=await ocrCanvas(nameCrop,'6');
-  const name=cleanOcrName(nameText);
-
-  const bottomCrop=makeOcrCrop(img,rx,ry+rh*0.70,rw,rh*0.30,1700);
-  const bottomText=await ocrCanvas(bottomCrop,'6');
-  const numMatch=bottomText.match(/\b(\d{1,3})\s*\/\s*(\d{2,3})\b/);
-  const cardno=numMatch ? numMatch[1] : '';
-
-  let set='';
-  if(numMatch){
-    const around=bottomText.replace(/\n/g,' ');
-    const m=around.match(/\b([A-Z]{2,4}[A-Z0-9]?)\b(?=[^\n]{0,28}\b\d{1,3}\s*\/\s*\d{2,3}\b)/);
-    if(m && !['BASIC','STAGE','TRAINER','ENERGY','ABILITY'].includes(m[1])) set=m[1];
+  // In deze vierkante studio-crop staat de kaart gecentreerd en is hij circa 64% breed.
+  // Daardoor negeren we nu de ZamexCards-logo's op de achtergrond volledig.
+  const cardLeft=.18, cardWidth=.64;
+  const nameCrop=makeOcrCrop(img,rx+rw*cardLeft,ry+rh*.005,rw*cardWidth,rh*.15,2000,true);
+  let nameData=await ocrCanvas(nameCrop,'7');
+  let name=bestNameFromData(nameData);
+  if(!name){
+    const nameCrop2=makeOcrCrop(img,rx+rw*cardLeft,ry+rh*.005,rw*cardWidth,rh*.20,2000,false);
+    nameData=await ocrCanvas(nameCrop2,'6');
+    name=bestNameFromData(nameData);
   }
 
-  return {name:name||pair.name,set:set||pair.set,cardno:cardno||pair.cardno};
+  // Kaartnummer staat onderaan de kaart. We lezen twee smalle varianten en accepteren alleen nnn/nnn.
+  const numCrop=makeOcrCrop(img,rx+rw*.18,ry+rh*.79,rw*.50,rh*.115,2400,true);
+  const numData=await ocrCanvas(numCrop,'7','0123456789/|OoIl ');
+  let cardno=extractCardNumber(numData.text||'');
+  if(!cardno){
+    const numCrop2=makeOcrCrop(img,rx+rw*.18,ry+rh*.75,rw*.64,rh*.16,2400,true);
+    const numData2=await ocrCanvas(numCrop2,'6','0123456789/|OoIl ');
+    cardno=extractCardNumber(numData2.text||'');
+  }
+
+  let set='';
+  const verified=await verifyWithTcgdex(name,cardno);
+  if(verified){name=verified.name;cardno=verified.cardno;set=verified.set}
+
+  // Belangrijk: onzekere OCR-resultaten worden NIET meer als echte kaartgegevens ingevuld.
+  // Leeg is beter dan een foutieve naam in alle bestands- en mapnamen.
+  return {name:name||'',set:set||'',cardno:cardno||''};
 }
 $('recognize').onclick=async()=>{
  if(!pairs.length){await $('prepare').onclick(); if(!pairs.length)return} if($('ocrMode').value==='off'){setStatus('Automatische herkenning staat uit.','warn');return}
  setStatus('Naam, set en kaartnummer worden herkend. Dit kan even duren...');
  for(let i=0;i<pairs.length;i++){const r=await ocrFront(pairs[i]);Object.assign(pairs[i],r);const card=document.querySelector(`.card[data-index="${i}"]`);card.querySelector('.name').value=pairs[i].name;card.querySelector('.set').value=pairs[i].set;card.querySelector('.cardno').value=pairs[i].cardno;$('bar').style.width=((i+1)/pairs.length*100)+'%'}
- setStatus('Herkenning klaar. Controleer de gegevens en corrigeer indien nodig.','ok');
+ setStatus('Herkenning klaar. Alleen gegevens met voldoende zekerheid zijn ingevuld; twijfelgevallen blijven leeg.','ok');
 }
 function safeName(s){return (s||'').replace(/[<>:"/\\|?*]+/g,'').replace(/\s+/g,' ').trim()}
 
