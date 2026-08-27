@@ -47,7 +47,7 @@ main{max-width:1280px;margin:26px auto;padding:0 16px 42px}
   margin-bottom:20px;
   box-shadow:0 10px 30px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.03);
 }
-.row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}
 .row.two{grid-template-columns:1fr 1fr}
 @media(max-width:900px){.row,.row.two{grid-template-columns:1fr}.panel{border-radius:22px;padding:18px}header h1{font-size:25px}}
 label{font-weight:800;font-size:14px;display:block;margin-bottom:8px;color:#fff}
@@ -114,7 +114,7 @@ h2{color:#fff;font-size:28px}
 <body>
 <header>
   <h1>ZamexCards Fotobatchbewerker</h1>
-  <p>Voorzijde + achterzijde koppelen, automatisch nummeren, ZamexCards-studio uitsnijden, watermerk toevoegen en alles als ZIP downloaden.</p>
+  <p>Voorzijde + achterzijde koppelen, automatisch nummeren, ZamexCards-studio uitsnijden, hoge webshopkwaliteit, watermerk toevoegen en alles als ZIP downloaden.</p>
 </header>
 <main>
 <section class="panel">
@@ -132,7 +132,12 @@ h2{color:#fff;font-size:28px}
     <div>
       <label>Uitvoerformaat</label>
       <select id="format"><option value="png">PNG</option><option value="jpg">JPG</option></select>
-      <div class="help">Standaard 1000 × 1000 pixels.</div>
+      <div class="help">PNG is aanbevolen voor maximale kwaliteit.</div>
+    </div>
+    <div>
+      <label>Resolutie</label>
+      <select id="resolution"><option value="1000">1000 × 1000</option><option value="1500" selected>1500 × 1500 (aanbevolen)</option><option value="2000">2000 × 2000</option></select>
+      <div class="help">1500 px geeft grotere, scherpere webshopbestanden.</div>
     </div>
     <div>
       <label>Startnummer</label>
@@ -152,8 +157,8 @@ h2{color:#fff;font-size:28px}
   <div class="row two" style="margin-top:14px">
     <div>
       <label>Kaart uitsnede</label>
-      <select id="cropMode"><option value="auto" selected>Automatisch centreren op de kaart (aanbevolen)</option><option value="studio">ZamexCards vaste studio-uitsnede</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
-      <div class="help">Automatisch centreren zoekt eerst de linker-, rechter- en bovenrand van de kaart en zet de kaart daarna op dezelfde vaste positie als in jouw voorbeeldfoto's. Hierdoor mogen de bronfoto's iets hoger, lager, links of rechts zijn gemaakt.</div>
+      <select id="cropMode"><option value="studio" selected>ZamexCards studio – kaart hoger / meer houder (aanbevolen)</option><option value="auto">Automatisch centreren op de kaart</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
+      <div class="help">De vaste ZamexCards studio-uitsnede is afgestemd op jouw fotostandaard. De kaart staat iets hoger zodat meer van de groene houder zichtbaar blijft.</div>
     </div>
     <div>
       <label>Naamherkenning</label>
@@ -161,7 +166,19 @@ h2{color:#fff;font-size:28px}
       <div class="help">Je kunt herkende gegevens altijd corrigeren vóór het downloaden.</div>
     </div>
   </div>
-  <div class="status ok" style="margin-top:14px"><strong>Originele kleuren behouden:</strong> er wordt standaard géén helderheid, contrast, verzadiging, witbalans of andere kleurcorrectie toegepast. Alleen uitsnijden, schalen en het watermerk toevoegen.</div>
+  <div class="row two" style="margin-top:14px">
+    <div>
+      <label>Beeldweergave</label>
+      <select id="look"><option value="natural" selected>Natuurlijk helder (aanbevolen)</option><option value="original">Exact origineel – geen correctie</option></select>
+      <div class="help">Natuurlijk helder gebruikt alleen een heel lichte helderheids- en contrastcorrectie, zonder extra verzadiging.</div>
+    </div>
+    <div>
+      <label>Scherpte</label>
+      <select id="sharpness"><option value="subtle" selected>Subtiel verscherpen</option><option value="off">Geen verscherping</option></select>
+      <div class="help">Subtiele verscherping helpt tekst en kaartranden zonder de foto onnatuurlijk te maken.</div>
+    </div>
+  </div>
+  <div class="status ok" style="margin-top:14px"><strong>Webshopkwaliteit:</strong> geen sterke kleurfilters. De standaardinstelling houdt de foto natuurlijk, maakt hem slechts licht helderder en exporteert als verliesvrije PNG op 1500 × 1500.</div>
 </section>
 
 <section class="panel">
@@ -180,7 +197,7 @@ h2{color:#fff;font-size:28px}
   <div id="cards" class="cards"></div>
 </section>
 </main>
-<canvas id="canvas" width="1000" height="1000"></canvas>
+<canvas id="canvas" width="1500" height="1500"></canvas>
 <script>
 const $=id=>document.getElementById(id);
 let pairs=[]; let watermarkImg=null;
@@ -271,7 +288,7 @@ async function detectCardCrop(img){
   if(bottom>h*.92 || cardH<h*.38 || cardH>h*.68) return null;
   // Doelpositie uit de goede ZamexCards voorbeelden: kaart bijna bovenaan, horizontaal gecentreerd,
   // kaarthoogte circa 89% van het 1000x1000 eindbeeld en groene houder zichtbaar onderaan.
-  const targetTop=.015, targetHeight=.89, targetCenterX=.50;
+  const targetTop=.002, targetHeight=.89, targetCenterX=.50;
   const cropSide=cardH/targetHeight;
   let cropX=((left+right)/2)-targetCenterX*cropSide;
   let cropY=top-targetTop*cropSide;
@@ -284,42 +301,82 @@ async function detectCardCrop(img){
   return {x:cropX,y:cropY,side,confidence:Math.min(ls,rs,ts)};
 }
 
+function applySubtleSharpen(canvas){
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const w=canvas.width,h=canvas.height;
+  const src=ctx.getImageData(0,0,w,h);
+  const d=src.data;
+  const out=new Uint8ClampedArray(d);
+  // Lichte 5-punts verscherping. Alleen op binnenpixels; alpha blijft intact.
+  // Strength 0.16 is bewust mild voor verkoopfoto's.
+  const strength=.16;
+  for(let y=1;y<h-1;y++){
+    let i=(y*w+1)*4;
+    for(let x=1;x<w-1;x++,i+=4){
+      for(let c=0;c<3;c++){
+        const center=d[i+c];
+        const blur=(d[i-4+c]+d[i+4+c]+d[i-w*4+c]+d[i+w*4+c])/4;
+        out[i+c]=Math.max(0,Math.min(255,center+(center-blur)*strength));
+      }
+    }
+  }
+  ctx.putImageData(new ImageData(out,w,h),0,0);
+}
+
 async function render(file, kind='front'){
  const img=await loadImage(file), c=$('canvas');
- c.width=1000;c.height=1000;
+ const OUT=Number($('resolution').value||1500);
+ c.width=OUT;c.height=OUT;
  const ctx=c.getContext('2d',{alpha:false,colorSpace:'srgb'});
- ctx.clearRect(0,0,1000,1000);ctx.fillStyle='#fff';ctx.fillRect(0,0,1000,1000);
- // Geen kleurfilters: verkoopfoto's moeten de originele opname zo natuurgetrouw mogelijk volgen.
- ctx.filter='none'; ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+ ctx.clearRect(0,0,OUT,OUT);ctx.fillStyle='#fff';ctx.fillRect(0,0,OUT,OUT);
+ ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+ const look=$('look')?.value||'natural';
+ // Geen verzadigingsfilter. Alleen een zeer milde helderheid/contrast boost in de aanbevolen stand.
+ ctx.filter = look==='natural' ? 'brightness(1.035) contrast(1.02)' : 'none';
  const mode=$('cropMode').value; let sx=0,sy=0,sw=img.width,sh=img.height;
  if(mode==='auto'){
    const detected=await detectCardCrop(img);
-   if(detected){sx=detected.x;sy=detected.y;sw=sh=detected.side;}
-   else {
-     // Fallback naar de eerder exact uitgemeten ZamexCards-crop.
+   if(detected){
+     sx=detected.x;sy=detected.y;sw=sh=detected.side;
+     // Zet het kader heel licht naar beneden: daardoor komt de kaart hoger in het eindbeeld
+     // en blijft meer van de groene houder zichtbaar.
+     sy=Math.min(img.height-sh, sy + sh*0.018);
+   } else {
      const refW=1153, refH=2048;
      const cfg = kind==='back'
        ? {x:221.68/refW, y:506.92/refH, side:694.49/refW}
        : {x:227.60/refW, y:524.40/refH, side:671.32/refW};
-     const side=Math.min(img.width*cfg.side,img.height); sx=img.width*cfg.x; sy=img.height*cfg.y; sw=sh=side;
+     const side=Math.min(img.width*cfg.side,img.height); sx=img.width*cfg.x; sy=img.height*cfg.y + side*0.025; sw=sh=side;
      sx=Math.max(0,Math.min(sx,img.width-sw)); sy=Math.max(0,Math.min(sy,img.height-sh));
    }
-   ctx.drawImage(img,sx,sy,sw,sh,0,0,1000,1000);
+   ctx.drawImage(img,sx,sy,sw,sh,0,0,OUT,OUT);
  } else if(mode==='studio'){
    const refW=1153, refH=2048;
    const cfg = kind==='back'
      ? {x:221.68/refW, y:506.92/refH, side:694.49/refW}
      : {x:227.60/refW, y:524.40/refH, side:671.32/refW};
    const side=Math.min(img.width*cfg.side, img.height);
-   sx=img.width*cfg.x; sy=img.height*cfg.y; sw=sh=side;
+   sx=img.width*cfg.x; sy=img.height*cfg.y + side*0.025; sw=sh=side;
    sx=Math.max(0,Math.min(sx,img.width-sw)); sy=Math.max(0,Math.min(sy,img.height-sh));
-   ctx.drawImage(img,sx,sy,sw,sh,0,0,1000,1000);
+   ctx.drawImage(img,sx,sy,sw,sh,0,0,OUT,OUT);
  } else if(mode==='center'){
-   const side=Math.min(img.width,img.height); sx=(img.width-side)/2; sy=(img.height-side)/2; sw=sh=side; ctx.drawImage(img,sx,sy,sw,sh,0,0,1000,1000);
- } else {const scale=Math.min(1000/img.width,1000/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(1000-w)/2,(1000-h)/2,w,h)}
- if(watermarkImg){const pct=Number($('wmSize').value||18)/100;const w=1000*pct;const h=w*(watermarkImg.height/watermarkImg.width);const x=1000-w-Number($('wmRight').value||20);const y=1000-h-Number($('wmBottom').value||20);ctx.save();ctx.globalAlpha=Number($('wmOpacity').value||35)/100;ctx.drawImage(watermarkImg,x,y,w,h);ctx.restore()}
- const fmt=$('format').value; return new Promise(r=>c.toBlob(r,fmt==='jpg'?'image/jpeg':'image/png',0.94));
+   const side=Math.min(img.width,img.height); sx=(img.width-side)/2; sy=(img.height-side)/2; sw=sh=side; ctx.drawImage(img,sx,sy,sw,sh,0,0,OUT,OUT);
+ } else {
+   const scale=Math.min(OUT/img.width,OUT/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(OUT-w)/2,(OUT-h)/2,w,h)
+ }
+ ctx.filter='none';
+ if($('sharpness')?.value==='subtle') applySubtleSharpen(c);
+ if(watermarkImg){
+   const pct=Number($('wmSize').value||18)/100;
+   const w=OUT*pct; const h=w*(watermarkImg.height/watermarkImg.width);
+   const scale=OUT/1000;
+   const x=OUT-w-Number($('wmRight').value||20)*scale;
+   const y=OUT-h-Number($('wmBottom').value||20)*scale;
+   ctx.save();ctx.globalAlpha=Number($('wmOpacity').value||35)/100;ctx.drawImage(watermarkImg,x,y,w,h);ctx.restore();
+ }
+ const fmt=$('format').value;
+ return new Promise(r=>c.toBlob(r,fmt==='jpg'?'image/jpeg':'image/png',0.98));
 }
 $('download').onclick=async()=>{
  if(!pairs.length){await $('prepare').onclick();if(!pairs.length)return} syncInputs(); if(!watermarkImg && $('watermark').files[0]) watermarkImg=await loadImage($('watermark').files[0]);

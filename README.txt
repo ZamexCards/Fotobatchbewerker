@@ -1,15 +1,20 @@
-ZamexCards Fotobatchbewerker v3
-===============================
+ZamexCards Fotobatchbewerker v4 – Webshopkwaliteit
 
-Nieuw in v3:
-- Automatische kaartcentrering is nu standaard.
-- De kaartranden worden per foto gezocht; de bronfoto mag dus iets hoger/lager/links/rechts staan.
-- Doelpositie is afgestemd op de goede ZamexCards productvoorbeelden: kaart bijna bovenaan, horizontaal gecentreerd en groene houder zichtbaar.
-- Originele kleuren worden behouden: geen helderheid-, contrast-, verzadiging- of witbalanscorrectie.
-- PNG blijft standaard voor zo min mogelijk kwaliteitsverlies.
-- Als automatische detectie onzeker is, valt de tool terug op de eerder uitgemeten vaste studio-uitsnede.
-- Watermerk, nummering, voor/achter-koppeling en ZIP-export blijven behouden.
+UPLOAD NAAR GITHUB
+1. Open repository: Fotobatchbewerker
+2. Vervang de bestaande index.html door de index.html uit deze map.
+3. Commit changes.
+4. GitHub Pages blijft werken op:
+   https://zamexcards.github.io/Fotobatchbewerker/
 
-GitHub Pages:
-Vervang de bestaande index.html in repository Fotobatchbewerker door deze index.html.
-De URL kan daarna hetzelfde blijven: https://zamexcards.github.io/Fotobatchbewerker/
+BELANGRIJKSTE AANPASSINGEN V4
+- Standaard 1500 x 1500 PNG voor hogere webshopkwaliteit.
+- Optioneel 1000 x 1000 of 2000 x 2000.
+- JPG export gebruikt 98% kwaliteit.
+- Standaard zeer lichte helderheid/contrastcorrectie, zonder extra verzadiging.
+- Keuze voor exact originele kleuren zonder correctie.
+- Subtiele verscherping voor tekst en kaartranden.
+- Kaart iets hoger geplaatst zodat meer van de groene ZamexCards-kaarthouder zichtbaar is.
+- Vaste ZamexCards studio-uitsnede is nu standaard voor een consistente serie.
+- Watermerk schaalt automatisch mee met de gekozen resolutie.
+- Voor- en achterkant blijven per kaart gekoppeld en genummerd.
