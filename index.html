@@ -156,6 +156,14 @@ h2{color:#fff;font-size:28px}
       <input id="startNo" type="number" min="1" value="1">
       <div class="help">Wordt automatisch 001, 002, 003...</div>
     </div>
+    <div>
+      <label>ZIP-indeling</label>
+      <select id="zipLayout">
+        <option value="flat" selected>Alle foto's direct in één ZIP</option>
+        <option value="folders">Per kaart een aparte map in de ZIP</option>
+      </select>
+      <div class="help">Bij aparte mappen wordt elke set van voor- en achterkant opgeslagen in een map zoals: 001 Pikachu.</div>
+    </div>
   </div>
 </section>
 
@@ -393,11 +401,19 @@ async function render(file, kind='front'){
 $('download').onclick=async()=>{
  if(!pairs.length){await $('prepare').onclick();if(!pairs.length)return} syncInputs(); if(!watermarkImg && $('watermark').files[0]) watermarkImg=await loadImage($('watermark').files[0]);
  const zip=new JSZip(); setStatus('Afbeeldingen worden verwerkt...'); $('bar').style.width='0%'; let done=0,total=pairs.reduce((a,p)=>a+(p.back?2:1),0);
- for(const p of pairs){const base=`${pad(p.num)} ${safeName(p.name)}${p.set||p.cardno?` (${safeName(p.set)}${p.set&&p.cardno?' ':''}${safeName(p.cardno)})`:''}`; const ext=$('format').value==='jpg'?'jpg':'png';
-   let b=await render(p.front,'front');zip.file(`${base} - Voorkant.${ext}`,b);done++;$('bar').style.width=(done/total*100)+'%';
-   if(p.back){b=await render(p.back,'back');zip.file(`${base} - Achterkant.${ext}`,b);done++;$('bar').style.width=(done/total*100)+'%';}
+ const zipLayout=$('zipLayout')?.value||'flat';
+ for(const p of pairs){
+   const cardName=safeName(p.name)||'Onbekende kaart';
+   const folderName=`${pad(p.num)} ${cardName}`;
+   const base=`${pad(p.num)} ${cardName}${p.set||p.cardno?` (${safeName(p.set)}${p.set&&p.cardno?' ':''}${safeName(p.cardno)})`:''}`;
+   const ext=$('format').value==='jpg'?'jpg':'png';
+   const prefix=zipLayout==='folders' ? `${folderName}/` : '';
+   let b=await render(p.front,'front');zip.file(`${prefix}${base} - Voorkant.${ext}`,b);done++;$('bar').style.width=(done/total*100)+'%';
+   if(p.back){b=await render(p.back,'back');zip.file(`${prefix}${base} - Achterkant.${ext}`,b);done++;$('bar').style.width=(done/total*100)+'%';}
  }
- const blob=await zip.generateAsync({type:'blob'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ZamexCards-productfotos.zip';a.click();setStatus(`Klaar: ${total} afbeeldingen in ZIP.`, 'ok');
+ const blob=await zip.generateAsync({type:'blob'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ZamexCards-productfotos.zip';a.click();
+ const layoutText=zipLayout==='folders'?'verdeeld over aparte kaartmappen':'direct in de ZIP';
+ setStatus(`Klaar: ${total} afbeeldingen ${layoutText}.`, 'ok');
 }
 </script>
 </body></html>
