@@ -181,9 +181,9 @@ h2{color:#fff;font-size:28px}
       <div class="help">De vaste ZamexCards studio-uitsnede is afgestemd op jouw fotostandaard. De kaart staat iets hoger zodat meer van de groene houder zichtbaar blijft.</div>
     </div>
     <div>
-      <label>Naamherkenning</label>
-      <select id="ocrMode"><option value="on">Probeer automatisch naam / set / kaartnummer te lezen</option><option value="off">Niet automatisch lezen</option></select>
-      <div class="help">Je kunt herkende gegevens altijd corrigeren vóór het downloaden.</div>
+      <label>Kaartgegevens herkennen</label>
+      <select id="ocrMode"><option value="visual" selected>Beeldherkenning – kaart vergelijken met Pokémon-database (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <div class="help">Beeldherkenning vergelijkt de kaartillustratie met een kaartdatabase. OCR wordt alleen als reserve gebruikt. Je kunt alles vóór het downloaden corrigeren.</div>
     </div>
   </div>
   <div class="row two" style="margin-top:14px">
@@ -204,7 +204,7 @@ h2{color:#fff;font-size:28px}
 <section class="panel">
   <div class="footer-actions">
     <button id="prepare" class="secondary">Foto's koppelen</button>
-    <button id="recognize" class="ghost">Gegevens automatisch herkennen</button>
+    <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
   <div id="status" class="status">Nog geen foto's geladen.</div>
@@ -334,51 +334,154 @@ async function verifyWithTcgdex(name,cardno){
     return {name:best.name,cardno:String(best.localId||cardno),set:(full?.set?.id||'').toUpperCase(),setName:full?.set?.name||'',score:bestScore};
   }catch(e){return null}
 }
+function studioCardCropCanvas(img){
+  // Stap 1: gebruik de betrouwbare ZamexCards-studio-uitsnede.
+  const refW=1153, refH=2048;
+  const cfg={x:227.60/refW, y:524.40/refH, side:671.32/refW};
+  const side=Math.min(img.width*cfg.side,img.height);
+  const sx=Math.max(0,Math.min(img.width*cfg.x,img.width-side));
+  const sy=Math.max(0,Math.min(img.height*cfg.y + side*0.025,img.height-side));
+
+  // Stap 2: haal alleen de kaart uit dat vierkant. De kaart staat in deze vaste fotostudio
+  // vrijwel recht, gecentreerd en heeft ongeveer het standaard 63:88-formaat.
+  const cardLeft=.18, cardTop=.006, cardWidth=.64;
+  const cardHeight=Math.min(.91,cardWidth*(88/63));
+  const csx=sx+side*cardLeft;
+  const csy=sy+side*cardTop;
+  const csw=side*cardWidth;
+  const csh=side*cardHeight;
+
+  const out=document.createElement('canvas');
+  out.width=420; out.height=Math.round(420*88/63);
+  const x=out.getContext('2d',{alpha:false});
+  x.fillStyle='#fff';x.fillRect(0,0,out.width,out.height);
+  x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';
+  x.drawImage(img,csx,csy,csw,csh,0,0,out.width,out.height);
+  return out;
+}
+function canvasToJpegUnder100k(canvas){
+  return new Promise(resolve=>{
+    const qualities=[.82,.72,.62,.52,.42];
+    const tryQ=i=>canvas.toBlob(blob=>{
+      if(!blob){resolve(null);return}
+      if(blob.size<=98000 || i===qualities.length-1){
+        const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.readAsDataURL(blob);
+      }else tryQ(i+1);
+    },'image/jpeg',qualities[i]);
+    tryQ(0);
+  });
+}
+function unwrapProduct(obj){
+  if(!obj||typeof obj!=='object')return null;
+  if(obj.product&&typeof obj.product==='object')return obj.product;
+  if(obj.data?.product&&typeof obj.data.product==='object')return obj.data.product;
+  if(obj.data&&typeof obj.data==='object'&&(obj.data.name||obj.data.id))return obj.data;
+  if(obj.name||obj.id)return obj;
+  return null;
+}
+async function scanCardImage(dataUrl,gameId){
+  const r=await fetch('https://openapi.tcgtracking.com/v1/scan',{
+    method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
+    body:JSON.stringify({game_id:gameId,limit:5,image:dataUrl})
+  });
+  if(!r.ok) throw new Error('scan '+r.status);
+  const data=await r.json();
+  const results=Array.isArray(data?.results)?data.results:[];
+  return results;
+}
+async function fetchCardProduct(productId){
+  const r=await fetch(`https://openapi.tcgtracking.com/v1/products/${encodeURIComponent(productId)}`,{cache:'no-store'});
+  if(!r.ok) throw new Error('product '+r.status);
+  return unwrapProduct(await r.json());
+}
+async function recognizeByImage(pair){
+  try{
+    const img=await loadImage(pair.front);
+    const crop=studioCardCropCanvas(img);
+    const dataUrl=await canvasToJpegUnder100k(crop);
+    if(!dataUrl)return null;
+
+    // Eerst internationale Pokémon-kaarten. Bij een zwakke match ook Pokémon Japan proberen.
+    let best=null,bestGame=3;
+    const intl=await scanCardImage(dataUrl,3);
+    if(intl.length)best={...intl[0],game_id:3};
+    if(!best || Number(best.score||0)<78){
+      try{
+        const jp=await scanCardImage(dataUrl,85);
+        if(jp.length && (!best || Number(jp[0].score||0)>Number(best.score||0))) best={...jp[0],game_id:85};
+      }catch(e){}
+    }
+    if(!best || Number(best.score||0)<62)return null;
+    const product=await fetchCardProduct(best.product_id);
+    if(!product || !product.name)return null;
+    return {
+      name:String(product.name||'').trim(),
+      set:String(product.set_abbr||product.set_code||product.set_name||'').trim().toUpperCase(),
+      cardno:String(product.number||product.collector_number||'').trim(),
+      setName:String(product.set_name||'').trim(),
+      confidence:Number(best.score||0),
+      source:'beeldmatch'
+    };
+  }catch(e){
+    console.warn('Beeldherkenning mislukt',e);
+    return null;
+  }
+}
 async function ocrFront(pair){
   const img=await loadImage(pair.front);
-  // Eerst exact dezelfde vaste studio-uitsnede gebruiken als bij de uiteindelijke export.
   const refW=1153, refH=2048;
   const cfg={x:227.60/refW, y:524.40/refH, side:671.32/refW};
   const side=Math.min(img.width*cfg.side,img.height);
   const sx=Math.max(0,Math.min(img.width*cfg.x,img.width-side));
   const sy=Math.max(0,Math.min(img.height*cfg.y + side*0.025,img.height-side));
   const rx=sx/img.width, ry=sy/img.height, rw=side/img.width, rh=side/img.height;
-
-  // In deze vierkante studio-crop staat de kaart gecentreerd en is hij circa 64% breed.
-  // Daardoor negeren we nu de ZamexCards-logo's op de achtergrond volledig.
   const cardLeft=.18, cardWidth=.64;
   const nameCrop=makeOcrCrop(img,rx+rw*cardLeft,ry+rh*.005,rw*cardWidth,rh*.15,2000,true);
   let nameData=await ocrCanvas(nameCrop,'7');
   let name=bestNameFromData(nameData);
   if(!name){
     const nameCrop2=makeOcrCrop(img,rx+rw*cardLeft,ry+rh*.005,rw*cardWidth,rh*.20,2000,false);
-    nameData=await ocrCanvas(nameCrop2,'6');
-    name=bestNameFromData(nameData);
+    nameData=await ocrCanvas(nameCrop2,'6');name=bestNameFromData(nameData);
   }
-
-  // Kaartnummer staat onderaan de kaart. We lezen twee smalle varianten en accepteren alleen nnn/nnn.
   const numCrop=makeOcrCrop(img,rx+rw*.18,ry+rh*.79,rw*.50,rh*.115,2400,true);
   const numData=await ocrCanvas(numCrop,'7','0123456789/|OoIl ');
   let cardno=extractCardNumber(numData.text||'');
   if(!cardno){
     const numCrop2=makeOcrCrop(img,rx+rw*.18,ry+rh*.75,rw*.64,rh*.16,2400,true);
-    const numData2=await ocrCanvas(numCrop2,'6','0123456789/|OoIl ');
-    cardno=extractCardNumber(numData2.text||'');
+    const numData2=await ocrCanvas(numCrop2,'6','0123456789/|OoIl ');cardno=extractCardNumber(numData2.text||'');
   }
-
-  let set='';
-  const verified=await verifyWithTcgdex(name,cardno);
+  let set='';const verified=await verifyWithTcgdex(name,cardno);
   if(verified){name=verified.name;cardno=verified.cardno;set=verified.set}
-
-  // Belangrijk: onzekere OCR-resultaten worden NIET meer als echte kaartgegevens ingevuld.
-  // Leeg is beter dan een foutieve naam in alle bestands- en mapnamen.
-  return {name:name||'',set:set||'',cardno:cardno||''};
+  return {name:name||'',set:set||'',cardno:cardno||'',confidence:0,source:'ocr'};
+}
+async function recognizeCard(pair,mode){
+  if(mode==='visual'){
+    const visual=await recognizeByImage(pair);
+    if(visual?.name && visual?.cardno)return visual;
+    // Alleen terugvallen op OCR als de echte beeldmatch niets vindt.
+    return await ocrFront(pair);
+  }
+  return await ocrFront(pair);
 }
 $('recognize').onclick=async()=>{
- if(!pairs.length){await $('prepare').onclick(); if(!pairs.length)return} if($('ocrMode').value==='off'){setStatus('Automatische herkenning staat uit.','warn');return}
- setStatus('Naam, set en kaartnummer worden herkend. Dit kan even duren...');
- for(let i=0;i<pairs.length;i++){const r=await ocrFront(pairs[i]);Object.assign(pairs[i],r);const card=document.querySelector(`.card[data-index="${i}"]`);card.querySelector('.name').value=pairs[i].name;card.querySelector('.set').value=pairs[i].set;card.querySelector('.cardno').value=pairs[i].cardno;$('bar').style.width=((i+1)/pairs.length*100)+'%'}
- setStatus('Herkenning klaar. Alleen gegevens met voldoende zekerheid zijn ingevuld; twijfelgevallen blijven leeg.','ok');
+ if(!pairs.length){await $('prepare').onclick(); if(!pairs.length)return}
+ const mode=$('ocrMode').value;
+ if(mode==='off'){setStatus('Automatische herkenning staat uit.','warn');return}
+ let found=0;
+ for(let i=0;i<pairs.length;i++){
+   setStatus(`Kaart ${i+1} van ${pairs.length} wordt herkend via ${mode==='visual'?'beeldvergelijking':'OCR'}...`);
+   const r=await recognizeCard(pairs[i],mode);
+   Object.assign(pairs[i],r);
+   const card=document.querySelector(`.card[data-index="${i}"]`);
+   card.querySelector('.name').value=pairs[i].name||'';
+   card.querySelector('.set').value=pairs[i].set||'';
+   card.querySelector('.cardno').value=pairs[i].cardno||'';
+   if(r?.name && r?.cardno){found++; card.title=r.source==='beeldmatch'?`Beeldmatch ${Math.round(r.confidence||0)}%${r.setName?' – '+r.setName:''}`:'OCR-herkenning';}
+   $('bar').style.width=((i+1)/pairs.length*100)+'%';
+ }
+ if(found===pairs.length)setStatus(`Klaar: alle ${found} kaarten zijn herkend. Controleer de gegevens vóór export.`, 'ok');
+ else if(found)setStatus(`Klaar: ${found} van ${pairs.length} kaarten zijn herkend. Niet-herkende kaarten kun je handmatig invullen.`, 'warn');
+ else setStatus('Er is geen betrouwbare kaartmatch gevonden. Controleer of de kaart volledig en recht in beeld staat.', 'warn');
 }
 function safeName(s){return (s||'').replace(/[<>:"/\\|?*]+/g,'').replace(/\s+/g,' ').trim()}
 
