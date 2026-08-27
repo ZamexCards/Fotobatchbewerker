@@ -153,7 +153,7 @@ h2{color:#fff;font-size:28px}
     </div>
     <div>
       <label>Startnummer</label>
-      <input id="startNo" type="number" min="1" value="1">
+      <input id="startNo" type="text" value="1" inputmode="numeric" placeholder="Bijv. 1 of 23-3332">
       <div class="help">Wordt automatisch 001, 002, 003...</div>
     </div>
     <div>
@@ -221,7 +221,18 @@ h2{color:#fff;font-size:28px}
 <script>
 const $=id=>document.getElementById(id);
 let pairs=[]; let watermarkImg=null;
-function pad(n){return String(n).padStart(3,'0')}
+function sequenceNumber(startValue, offset){
+ const raw=String(startValue??'1').trim()||'1';
+ const m=raw.match(/^(.*?)(\d+)$/);
+ if(!m) return offset===0 ? raw : `${raw}-${offset+1}`;
+ const prefix=m[1], digits=m[2];
+ const next=String(Number(digits)+offset).padStart(digits.length,'0');
+ return prefix+next;
+}
+function formatNum(n){
+ const s=String(n??'').trim();
+ return /^\d+$/.test(s) ? s.padStart(3,'0') : s;
+}
 function setStatus(msg,type=''){const el=$('status');el.textContent=msg;el.className='status '+type}
 function loadImage(file){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=URL.createObjectURL(file)})}
 function dataURL(file){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file)})}
@@ -229,27 +240,80 @@ $('watermark').addEventListener('change',async e=>{if(e.target.files[0]){waterma
 $('prepare').onclick=async()=>{
  const files=[...$('photos').files]; if(!files.length){setStatus('Selecteer eerst foto\'s.','warn');return}
  if(files.length%2!==0)setStatus(`Let op: ${files.length} foto\'s geladen. De laatste foto heeft geen partner.`,'warn'); else setStatus(`${files.length} foto\'s geladen = ${files.length/2} kaarten.`,'ok');
- pairs=[]; const start=Number($('startNo').value||1); const wrap=$('cards'); wrap.innerHTML='';
+ pairs=[]; const start=$('startNo').value||'1'; const wrap=$('cards'); wrap.innerHTML='';
  for(let i=0;i<files.length;i+=2){
-   const p={num:start+(i/2),front:files[i],back:files[i+1]||null,name:'',set:'',cardno:''}; pairs.push(p);
+   const p={num:sequenceNumber(start,i/2),front:files[i],back:files[i+1]||null,name:'',set:'',cardno:''}; pairs.push(p);
    const frontURL=await dataURL(p.front), backURL=p.back?await dataURL(p.back):'';
    const div=document.createElement('div');div.className='card';div.dataset.index=pairs.length-1;
-   div.innerHTML=`<div><span class="tag">${pad(p.num)}</span><span class="tag">Voor + Achter</span></div>
+   div.innerHTML=`<div><span class="tag">${formatNum(p.num)}</span><span class="tag">Voor + Achter</span></div>
    <div class="thumbs" style="margin-top:8px"><div class="thumb"><img src="${frontURL}"></div><div class="thumb">${backURL?`<img src="${backURL}">`:'ONTBREEKT'}</div></div>
    <div class="meta"><div class="wide"><label>Pokémon / kaartnaam</label><input class="name" type="text" placeholder="Mega Greninja ex"></div><div><label>Set</label><input class="set" type="text" placeholder="CRI"></div><div><label>Kaartnummer</label><input class="cardno" type="text" placeholder="122"></div></div>`;
    wrap.appendChild(div);
  }
 }
 function syncInputs(){document.querySelectorAll('.card').forEach(card=>{const p=pairs[+card.dataset.index];p.name=card.querySelector('.name').value.trim();p.set=card.querySelector('.set').value.trim().toUpperCase();p.cardno=card.querySelector('.cardno').value.trim()})}
+async function ocrCanvas(canvas, psm='6'){
+  const res=await Tesseract.recognize(canvas,'eng',{
+    logger:m=>{if(m.status==='recognizing text')$('bar').style.width=(m.progress*100)+'%'},
+    tessedit_pageseg_mode:psm,
+    preserve_interword_spaces:'1'
+  });
+  return (res?.data?.text||'').replace(/\r/g,' ');
+}
+function makeOcrCrop(img, rx, ry, rw, rh, outW=1400){
+  const c=document.createElement('canvas');
+  const sx=Math.max(0,Math.round(img.width*rx));
+  const sy=Math.max(0,Math.round(img.height*ry));
+  const sw=Math.min(img.width-sx,Math.round(img.width*rw));
+  const sh=Math.min(img.height-sy,Math.round(img.height*rh));
+  const scale=outW/sw;
+  c.width=outW; c.height=Math.max(1,Math.round(sh*scale));
+  const x=c.getContext('2d',{willReadFrequently:true});
+  x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+  x.filter='grayscale(1) contrast(1.55) brightness(1.08)';
+  x.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
+  x.filter='none';
+  return c;
+}
+function cleanOcrName(text){
+  const banned=/\b(HP|BASIC|STAGE|TRAINER|ENERGY|ABILITY|RULE|WEAKNESS|RESISTANCE|RETREAT|ILLUS|POKEMON)\b/i;
+  const lines=text.split('\n').map(v=>v.trim()).filter(Boolean);
+  for(let line of lines){
+    line=line.replace(/\bHP\s*\d+.*$/i,'').replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ0-9 .,'’\-]+$/g,'').replace(/\s{2,}/g,' ').trim();
+    if(line.length<3 || line.length>34 || banned.test(line)) continue;
+    const letters=(line.match(/[A-Za-zÀ-ÿ]/g)||[]).length;
+    if(letters/Math.max(1,line.length)<0.65) continue;
+    const words=line.split(/\s+/);
+    if(words.length>5) continue;
+    return line;
+  }
+  return '';
+}
 async function ocrFront(pair){
- const img=await loadImage(pair.front); const c=document.createElement('canvas'); const ctx=c.getContext('2d');
- const scale=Math.min(1,1200/img.width); c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);ctx.drawImage(img,0,0,c.width,c.height);
- const res=await Tesseract.recognize(c,'eng',{logger:m=>{if(m.status==='recognizing text')$('bar').style.width=(m.progress*100)+'%'}}); const text=res.data.text.replace(/\r/g,' ');
- const lines=text.split('\n').map(s=>s.trim()).filter(Boolean);
- let name=''; for(const line of lines.slice(0,8)){if(/\b(ex|EX|V|VMAX|VSTAR|GX)\b/.test(line)||/^[A-Za-z][A-Za-z .'-]{3,25}$/.test(line)){name=line.replace(/\s+HP\s*\d+.*/i,'').replace(/\s{2,}/g,' ').trim(); if(name.length>2)break}}
- const numMatch=text.match(/\b(\d{1,3})\s*\/\s*(\d{2,3})\b/);
- let set=''; const setMatches=[...text.matchAll(/\b[A-Z]{2,5}\b/g)].map(m=>m[0]).filter(x=>!['HP','BASIC','STAGE','ABILITY','ENERGY','POKEMON'].includes(x)); if(setMatches.length)set=setMatches[setMatches.length-1];
- return {name:name||pair.name,set:set||pair.set,cardno:numMatch?numMatch[1]:pair.cardno};
+  const img=await loadImage(pair.front);
+  const refW=1153, refH=2048;
+  const cardX=227.60/refW, cardY=524.40/refH, cardSide=671.32/refW;
+  const sidePx=img.width*cardSide;
+  const xPx=img.width*cardX, yPx=img.height*cardY;
+  const rx=xPx/img.width, ry=yPx/img.height, rw=sidePx/img.width, rh=sidePx/img.height;
+
+  const nameCrop=makeOcrCrop(img,rx,ry,rw,rh*0.24,1500);
+  const nameText=await ocrCanvas(nameCrop,'6');
+  const name=cleanOcrName(nameText);
+
+  const bottomCrop=makeOcrCrop(img,rx,ry+rh*0.70,rw,rh*0.30,1700);
+  const bottomText=await ocrCanvas(bottomCrop,'6');
+  const numMatch=bottomText.match(/\b(\d{1,3})\s*\/\s*(\d{2,3})\b/);
+  const cardno=numMatch ? numMatch[1] : '';
+
+  let set='';
+  if(numMatch){
+    const around=bottomText.replace(/\n/g,' ');
+    const m=around.match(/\b([A-Z]{2,4}[A-Z0-9]?)\b(?=[^\n]{0,28}\b\d{1,3}\s*\/\s*\d{2,3}\b)/);
+    if(m && !['BASIC','STAGE','TRAINER','ENERGY','ABILITY'].includes(m[1])) set=m[1];
+  }
+
+  return {name:name||pair.name,set:set||pair.set,cardno:cardno||pair.cardno};
 }
 $('recognize').onclick=async()=>{
  if(!pairs.length){await $('prepare').onclick(); if(!pairs.length)return} if($('ocrMode').value==='off'){setStatus('Automatische herkenning staat uit.','warn');return}
@@ -257,7 +321,7 @@ $('recognize').onclick=async()=>{
  for(let i=0;i<pairs.length;i++){const r=await ocrFront(pairs[i]);Object.assign(pairs[i],r);const card=document.querySelector(`.card[data-index="${i}"]`);card.querySelector('.name').value=pairs[i].name;card.querySelector('.set').value=pairs[i].set;card.querySelector('.cardno').value=pairs[i].cardno;$('bar').style.width=((i+1)/pairs.length*100)+'%'}
  setStatus('Herkenning klaar. Controleer de gegevens en corrigeer indien nodig.','ok');
 }
-function safeName(s){return (s||'Onbekende kaart').replace(/[<>:"/\\|?*]+/g,'').replace(/\s+/g,' ').trim()}
+function safeName(s){return (s||'').replace(/[<>:"/\\|?*]+/g,'').replace(/\s+/g,' ').trim()}
 
 async function detectCardCrop(img){
   // Analyseer een kleine kopie: sneller en stabieler dan op volledige resolutie.
@@ -404,8 +468,10 @@ $('download').onclick=async()=>{
  const zipLayout=$('zipLayout')?.value||'flat';
  for(const p of pairs){
    const cardName=safeName(p.name)||'Onbekende kaart';
-   const folderName=`${pad(p.num)} ${cardName}`;
-   const base=`${pad(p.num)} ${cardName}${p.set||p.cardno?` (${safeName(p.set)}${p.set&&p.cardno?' ':''}${safeName(p.cardno)})`:''}`;
+   const cleanSet=safeName(p.set), cleanNo=safeName(p.cardno);
+   const details=[cleanSet,cleanNo].filter(Boolean).join(' ');
+   const folderName=`${formatNum(p.num)} ${cardName}`;
+   const base=`${formatNum(p.num)} ${cardName}${details?` (${details})`:''}`;
    const ext=$('format').value==='jpg'?'jpg':'png';
    const prefix=zipLayout==='folders' ? `${folderName}/` : '';
    let b=await render(p.front,'front');zip.file(`${prefix}${base} - Voorkant.${ext}`,b);done++;$('bar').style.width=(done/total*100)+'%';
