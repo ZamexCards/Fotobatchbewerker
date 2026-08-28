@@ -522,7 +522,23 @@ async function enrichTcgdexMatch(best,hints){
   };
 }
 async function recognizeHybrid(pair){
+  // Gratis beeldscan is voortaan de hoofdroute. OCR/TCGdex dient als controle en fallback.
   const hints=await readRecognitionHints(pair);
+
+  let visual=null;
+  try{ visual=await recognizeByImage(pair,hints); }catch(e){ console.warn('Primaire beeldscan mislukt',e); }
+  if(visual?.name && visual?.cardno){
+    // Als OCR een nummer zag en dat overeenkomt, verhogen we de zekerheid.
+    const hn=normalizeCardNo(hints.cardno).replace(/^0+(?=\d)/,'');
+    const vn=normalizeCardNo(visual.cardno).replace(/^0+(?=\d)/,'');
+    if(hn && vn && hn===vn) visual.confidence=Math.min(100,Math.max(Number(visual.confidence||0),82));
+    visual.ocrName=hints.name||'';
+    visual.ocrCardno=hints.cardno||'';
+    visual.ocrSet=hints.setHint||'';
+    visual.rawBottom=hints.rawBottom||'';
+    return visual;
+  }
+
   const candidates=await tcgdexCandidates(hints);
   if(candidates.length){
     const scored=[];
@@ -535,26 +551,25 @@ async function recognizeHybrid(pair){
     const best=scored[0], second=scored[1];
     if(best){
       const margin=best.total-(second?.total??0);
-      // Exact kaartnummer + duidelijke beeldmatch mag al met lagere totaalscore door.
-      const reliable=(best.numberScore===100 && best.imageScore>=52 && (margin>=2.2 || best.imageScore>=68)) ||
-                     (best.total>=70 && best.imageScore>=58) ||
-                     (best.imageScore>=78);
-      if(reliable){const enriched=await enrichTcgdexMatch(best,hints);if(enriched)return enriched;}
+      const reliable=(best.numberScore===100 && best.imageScore>=45 && (margin>=1.5 || best.imageScore>=62)) ||
+                     (best.total>=63 && best.imageScore>=52) ||
+                     (best.imageScore>=73);
+      if(reliable){
+        const enriched=await enrichTcgdexMatch(best,hints);
+        if(enriched){
+          enriched.ocrName=hints.name||''; enriched.ocrCardno=hints.cardno||''; enriched.ocrSet=hints.setHint||''; enriched.rawBottom=hints.rawBottom||'';
+          return enriched;
+        }
+      }
     }
   }
-  // Fallback op de bestaande scanservice als kandidaatgenerator; nooit meer blind vertrouwen.
-  try{
-    const visual=await recognizeByImage(pair);
-    if(visual?.name && visual?.cardno)return {...visual,source:'beeldmatch fallback'};
-  }catch(e){}
-  // Laat liever een veld leeg dan OCR-onzin als definitief resultaat te gebruiken.
-  return {name:'',set:'',cardno:hints.cardno||'',confidence:0,source:'geen betrouwbare match'};
+  return {name:'',set:'',cardno:'',confidence:0,source:'geen betrouwbare match',ocrName:hints.name||'',ocrCardno:hints.cardno||'',ocrSet:hints.setHint||'',rawBottom:hints.rawBottom||'',scanInfo:window.__lastScanInfo||''};
 }
 async function canvasToScanDataUrl(source){
-  // TCGTracking accepteert maximaal 100 KB decoded. Houd bewust marge over.
-  const maxBytes=90000;
-  let maxW=360;
-  for(let attempt=0;attempt<5;attempt++){
+  // Open TCG API accepteert max. 100 KB decoded; 86 KB geeft extra marge.
+  const maxBytes=86000;
+  let maxW=420;
+  for(let attempt=0;attempt<7;attempt++){
     const scale=Math.min(1,maxW/source.width);
     const c=document.createElement('canvas');
     c.width=Math.max(1,Math.round(source.width*scale));
@@ -563,65 +578,97 @@ async function canvasToScanDataUrl(source){
     x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
     x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';
     x.drawImage(source,0,0,c.width,c.height);
-    for(const q of [.64,.55,.46,.38,.32]){
+    for(const q of [.72,.62,.54,.46,.38,.32,.26]){
       const url=c.toDataURL('image/jpeg',q);
       const b64=url.split(',')[1]||'';
       const bytes=Math.floor(b64.length*3/4);
-      if(bytes<=maxBytes)return {url,bytes,width:c.width,height:c.height};
+      if(bytes<=maxBytes)return {url,bytes,width:c.width,height:c.height,quality:q};
     }
-    maxW=Math.round(maxW*.82);
+    maxW=Math.round(maxW*.84);
   }
   return null;
 }
-async function recognizeByImage(pair){
-  // Zelfstandige beeldherkenning: deze route werkt ook als OCR niets kan lezen.
+async function scanCanvasOpenTcg(canvas,label){
+  const packed=await canvasToScanDataUrl(canvas);
+  if(!packed)return {matches:[],errors:[label+': afbeelding kon niet onder 100 KB worden gebracht']};
+  const matches=[],errors=[];
+  for(const gameId of [3,85]){
+    try{
+      const r=await fetch('https://openapi.tcgtracking.com/v1/scan',{
+        method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
+        body:JSON.stringify({game_id:gameId,limit:5,image:packed.url})
+      });
+      if(!r.ok){
+        const txt=await r.text().catch(()=>'');
+        errors.push(`${label}/${gameId}: HTTP ${r.status}${txt?' '+txt.slice(0,90):''}`);
+        continue;
+      }
+      const data=await r.json();
+      const rs=Array.isArray(data?.results)?data.results:[];
+      for(const m of rs) if(m?.product_id) matches.push({...m,gameId,cropLabel:label,uploadBytes:packed.bytes});
+      if(!rs.length) errors.push(`${label}/${gameId}: 0 kandidaten`);
+    }catch(e){errors.push(`${label}/${gameId}: ${e?.message||String(e)}`)}
+  }
+  return {matches,errors};
+}
+async function recognizeByImage(pair,hints={}){
+  window.__lastScanInfo='';
   try{
     const img=await loadImage(pair.front);
-    const crop=await recognitionCardCanvas(img);
-    const packed=await canvasToScanDataUrl(crop);
-    if(!packed)return null;
+    const autoCrop=await recognitionCardCanvas(img);
+    const crops=[{canvas:autoCrop,label:autoCrop.dataset.cropSource||'automatisch'}];
 
-    // 3 = Pokemon internationaal, 85 = Pokemon Japan.
-    // De Scan API accepteert alleen limit 5 of 10 (niet 3).
-    const gameIds=[3,85];
-    const matches=[];
-    for(const gameId of gameIds){
-      try{
-        const r=await fetch('https://openapi.tcgtracking.com/v1/scan',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          cache:'no-store',
-          body:JSON.stringify({game_id:gameId,limit:5,image:packed.url})
-        });
-        if(!r.ok){
-          const txt=await r.text().catch(()=>'');
-          console.warn('TCGTracking scan',gameId,'HTTP',r.status,txt.slice(0,180));
-          continue;
-        }
-        const data=await r.json();
-        const rs=Array.isArray(data?.results)?data.results:[];
-        for(const m of rs)if(m?.product_id)matches.push({...m,gameId});
-      }catch(e){console.warn('TCGTracking scan error',gameId,e)}
+    // Tweede scan met studio-crop wanneer de automatische detector een andere uitsnede gaf.
+    if((autoCrop.dataset.cropSource||'')!=='vaste studio fallback'){
+      try{crops.push({canvas:studioCardCropCanvas(img),label:'studio'});}catch(e){}
     }
-    if(!matches.length)return null;
-    matches.sort((a,b)=>Number(b.score||0)-Number(a.score||0));
-    const best=matches[0];
-    if(Number(best.score||0)<60)return null;
+
+    const all=[],errors=[];
+    for(const c of crops){
+      const r=await scanCanvasOpenTcg(c.canvas,c.label);
+      all.push(...r.matches); errors.push(...r.errors);
+    }
+    if(!all.length){window.__lastScanInfo=errors.join(' | ')||'scan gaf geen kandidaten';return null;}
+
+    // Zelfde product kan via meerdere crops/categories terugkomen: hoogste score bewaren.
+    const bestPerProduct=new Map();
+    for(const m of all){
+      const k=String(m.product_id);
+      const old=bestPerProduct.get(k);
+      if(!old || Number(m.score||0)>Number(old.score||0)) bestPerProduct.set(k,m);
+    }
+    const matches=[...bestPerProduct.values()].sort((a,b)=>Number(b.score||0)-Number(a.score||0));
+    const best=matches[0], second=matches[1];
+    const bestScore=Number(best?.score||0), secondScore=Number(second?.score||0), margin=bestScore-secondScore;
+
+    window.__lastScanInfo=`beste ${bestScore}%${second?`, tweede ${secondScore}%`:''}, verschil ${Math.round(margin)}%, crop ${best?.cropLabel||'-'}` + (errors.length?` | ${errors.join(' | ')}`:'');
+
+    // Ruimer dan voorheen, maar alleen accepteren met voldoende absolute score of duidelijke voorsprong.
+    const accept = bestScore>=58 || (bestScore>=46 && margin>=7) || (bestScore>=38 && margin>=13);
+    if(!accept)return null;
 
     const pr=await fetch(`https://openapi.tcgtracking.com/v1/products/${encodeURIComponent(best.product_id)}`,{cache:'no-store'});
-    if(!pr.ok)return null;
+    if(!pr.ok){window.__lastScanInfo+=` | product HTTP ${pr.status}`;return null;}
     const obj=await pr.json();
     const product=obj?.product||obj?.data?.product||obj?.data||obj;
     if(!product?.name)return null;
+
+    // Als OCR een kaartnummer heeft en de beeldmatch daar duidelijk mee botst, niet blind accepteren.
+    const hn=normalizeCardNo(hints.cardno||'').replace(/^0+(?=\d)/,'');
+    const pn=normalizeCardNo(product.number||product.collector_number||'').replace(/^0+(?=\d)/,'');
+    if(hn && pn && hn!==pn && bestScore<70){window.__lastScanInfo+=` | OCR nr ${hn} ≠ match nr ${pn}`;return null;}
+
     return {
       name:String(product.name).trim(),
-      set:String(product.set_abbr||product.set_code||product.set_name||'').trim().toUpperCase(),
+      set:String(product.set_abbr||product.set_code||'').trim().toUpperCase(),
       cardno:String(product.number||product.collector_number||'').trim(),
       setName:String(product.set_name||'').trim(),
-      confidence:Number(best.score||0),
-      source:`beeldmatch ${best.gameId===85?'Pokemon Japan':'Pokemon'}`
+      confidence:bestScore,
+      secondScore,margin,
+      source:`gratis beeldscan ${best.gameId===85?'Pokémon Japan':'Pokémon'}`,
+      scanInfo:window.__lastScanInfo
     };
-  }catch(e){console.warn('Beeldherkenning mislukt',e);return null}
+  }catch(e){window.__lastScanInfo='beeldscan fout: '+(e?.message||String(e));console.warn('Beeldherkenning mislukt',e);return null}
 }
 async function ocrFront(pair){
   const h=await readRecognitionHints(pair);
@@ -651,7 +698,7 @@ $('recognize').onclick=async()=>{
      card.querySelector('.recog-preview').src=rc.toDataURL('image/jpeg',.78);
      const cropInfo=rc.dataset.cropSource||'onbekend';
      const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
-     dbg.querySelector('.diag').textContent=`Uitsnede: ${cropInfo} | Bron: ${r?.source||'-'} | Score: ${conf} | Naam: ${r?.name||'-'} | Set: ${r?.set||'-'} | Nr: ${r?.cardno||'-'}`;
+     dbg.querySelector('.diag').textContent=`Uitsnede: ${cropInfo} | Bron: ${r?.source||'-'} | Score: ${conf} | Naam: ${r?.name||'-'} | Set: ${r?.set||'-'} | Nr: ${r?.cardno||'-'} | OCR naam: ${r?.ocrName||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Scan: ${r?.scanInfo||window.__lastScanInfo||'-'}`;
    }catch(e){dbg.querySelector('.diag').textContent='Diagnose kon niet worden gemaakt.'}
    if(r?.name && r?.cardno){found++; card.title=`${r.source||'Herkenning'}${r.confidence?' '+Math.round(r.confidence)+'%':''}${r.setName?' – '+r.setName:''}`;}
    $('bar').style.width=((i+1)/pairs.length*100)+'%';
