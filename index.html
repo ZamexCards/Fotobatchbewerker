@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Image Match V14</title>
+<title>ZamexCards Fotobatchbewerker – Image Match V15</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -204,7 +204,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Image Match V14 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Image Match V15 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -227,10 +227,10 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Image Match V14</strong>
+      <strong>Image Match V15</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
-    <div class="ai8small">
+    <div id="api15status" class="ai8small">Open TCG API wordt getest…</div><div class="ai8small">
       Geen installatie en geen betaalde scan-API. Florence-2 draait rechtstreeks in Chrome.
       De eerste herkenning downloadt het AI-model éénmalig naar de browsercache.
     </div>
@@ -243,7 +243,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
-  <div id="status" class="status">Image Match V14 geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Image Match V15 geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -613,7 +613,7 @@ function setCodeFields(s){
 async function getOpenTcgSets(gameId){
   if(OPEN_TCG_SET_CACHE[gameId])return OPEN_TCG_SET_CACHE[gameId];
   try{
-    const obj=await fetchJsonTimeout(`https://openapi.tcgtracking.com/v1/${gameId}/sets`,9000);
+    const obj=await fetchJsonTimeout(`https://tcgtracking.com/tcgapi/v1/${gameId}/sets`,9000);
     const rows=setRowsFromResponse(obj);
     OPEN_TCG_SET_CACHE[gameId]=rows;
     return rows;
@@ -652,7 +652,7 @@ async function lookupOpenTcgByIdentity(hints){
       const setId=s?.id??s?.set_id??s?.category_set_id;
       if(setId==null)continue;
       try{
-        const obj=await fetchJsonTimeout(`https://openapi.tcgtracking.com/v1/${gameId}/sets/${encodeURIComponent(setId)}/cards`,9000);
+        const obj=await fetchJsonTimeout(`https://tcgtracking.com/tcgapi/v1/${gameId}/sets/${encodeURIComponent(setId)}/cards`,9000);
         const products=productRowsFromResponse(obj);
         for(const p of products){
           const pno=normCollector(p?.number??p?.collector_number??p?.localId);
@@ -1010,9 +1010,9 @@ async function recognizeWithBrowserAI(pair){
     try{
       const exact=await lookupOpenTcgByIdentity(hints);
       if(exact?.name && exact?.cardno){
-        exact.source='V14 set/nummer OCR → exacte database';
+        exact.source='V15 set/nummer OCR → exacte database';
         exact.confidence=99;
-        exact.scanInfo=`V14 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
+        exact.scanInfo=`V15 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
         exact.cropSource=hints.cropSource;
         return exact;
       }
@@ -1039,9 +1039,9 @@ async function recognizeWithBrowserAI(pair){
       let e=await enrichTcgdexMatch(best,hints);
       if(!e)e=await v12MetadataFromDisplayedCandidate(best,hints);
       if(e){
-        e.source='V14 referentiekaart-match';
+        e.source='V15 referentiekaart-match';
         e.confidence=Math.max(55,Math.round(best.imageScore||0));
-        e.scanInfo=`V14 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | beste artworkmatch ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}% | automatisch overgenomen`;
+        e.scanInfo=`V15 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | beste artworkmatch ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}% | automatisch overgenomen`;
         e.cropSource=hints.cropSource;
         return e;
       }
@@ -1070,7 +1070,7 @@ async function recognizeWithBrowserAI(pair){
         let e=await enrichTcgdexMatch(best,h2);
         if(!e)e=await v12MetadataFromDisplayedCandidate(best,h2);
         if(e){
-          e.source='V14 visuele referentiekaart-match';
+          e.source='V15 visuele referentiekaart-match';
           e.confidence=Math.max(55,Math.round(best.imageScore||0));
           e.scanInfo=`Beschrijving: ${desc.slice(0,180)} | beste artworkmatch ${Math.round(best.imageScore||0)}% | automatisch overgenomen`;
           e.cropSource=hints.cropSource;
@@ -1186,7 +1186,7 @@ async function scanCanvasOpenTcg(canvas,label){
   const matches=[],errors=[];
   for(const gameId of [3,85]){
     try{
-      const r=await fetch('https://openapi.tcgtracking.com/v1/scan',{
+      const r=await fetch('https://tcgtracking.com/tcgapi/v1/scan',{
         method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
         body:JSON.stringify({game_id:gameId,limit:5,image:packed.url})
       });
@@ -1254,7 +1254,7 @@ async function recognizeByImage(pair,hints={}){
     const usable=matches.filter(m=>Number(m.score||0)>=10).slice(0,3);
     for(const m of usable){
       try{
-        const pr=await fetch(`https://openapi.tcgtracking.com/v1/products/${encodeURIComponent(m.product_id)}`,{cache:'no-store'});
+        const pr=await fetch(`https://tcgtracking.com/tcgapi/v1/products/${encodeURIComponent(m.product_id)}`,{mode:'cors',cache:'no-store'});
         if(!pr.ok)continue;
         const obj=await pr.json();
         const product=obj?.product||obj?.data?.product||obj?.data||obj;
@@ -1271,7 +1271,7 @@ async function recognizeByImage(pair,hints={}){
         return {
           name,set:setCode,cardno,setName,
           confidence:Math.max(50,Math.round(s)),
-          source:'V14 directe beeldmatch',
+          source:'V15 directe beeldmatch',
           scanInfo:window.__lastScanInfo,
           cropSource:card.dataset.cropSource||''
         };
@@ -1347,7 +1347,7 @@ $('recognize').onclick=async()=>{
        const pv=card?.querySelector('.recog-preview');
        if(pv)pv.src=rc.toDataURL('image/jpeg',.88);
        const dg=card?.querySelector('.diag');
-       if(dg)dg.textContent=`V14 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
+       if(dg)dg.textContent=`V15 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
      }catch(e){}
 
      // Geef de browser één frame om bovenstaande zichtbaar te maken.
@@ -1364,7 +1364,7 @@ $('recognize').onclick=async()=>{
        const dbg=card.querySelector('.diag');
        const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
        if(dbg){
-         dbg.textContent=`V14 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
+         dbg.textContent=`V15 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
        }
 
        card.classList.remove('recognizing');
@@ -1634,6 +1634,23 @@ document.addEventListener('DOMContentLoaded',()=>{
   const d=document.getElementById('download');
   if(d)d.disabled=true;
 });
+
+
+
+async function v15TestOpenTcgApi(){
+  const el=document.getElementById('api15status');
+  if(!el)return;
+  try{
+    const r=await fetch('https://tcgtracking.com/tcgapi/v1/categories',{mode:'cors',cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    const ok=Array.isArray(j)||Array.isArray(j?.categories)||Array.isArray(j?.data);
+    el.textContent=ok?'Open TCG API: online en bereikbaar vanuit GitHub Pages.':'Open TCG API: antwoord ontvangen.';
+  }catch(e){
+    el.textContent='Open TCG API: niet bereikbaar vanuit deze browser ('+(e?.message||e)+').';
+  }
+}
+document.addEventListener('DOMContentLoaded',()=>setTimeout(v15TestOpenTcgApi,500));
 
 </script>
 

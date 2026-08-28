@@ -1,0 +1,27 @@
+ZamexCards Fotobatchbewerker V15
+
+KRITIEKE FIX
+De eerdere versies gebruikten:
+https://openapi.tcgtracking.com/v1/...
+
+De actuele Open TCG API-documentatie gebruikt:
+https://tcgtracking.com/tcgapi/v1/...
+
+Daardoor ontstond in jouw GitHub Pages-versie 'Failed to fetch'.
+
+V15 gebruikt nu overal de actuele route:
+- /tcgapi/v1/scan
+- /tcgapi/v1/products/{id}
+- /tcgapi/v1/{game}/sets
+- /tcgapi/v1/{game}/sets/{set}/cards
+- /tcgapi/v1/categories
+
+Werking:
+foto -> kaart uitsnijden -> directe beeldscan -> product_id -> productnaam ->
+bestandsnaam.
+
+Voor de ZIP-bestandsnaam wordt alleen de kaartnaam gebruikt.
+Watermerk breedte blijft standaard 28.
+
+GitHub:
+Vervang alleen index.html door de index.html uit deze ZIP.
