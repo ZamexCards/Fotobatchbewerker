@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Meertalige Naamherkenning V17</title>
+<title>ZamexCards Fotobatchbewerker – Meertalige Naamherkenning V18</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -204,7 +204,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Meertalige Naamherkenning V17 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Meertalige Naamherkenning V18 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -227,7 +227,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Meertalige Naamherkenning V17</strong>
+      <strong>Meertalige Naamherkenning V18</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -243,7 +243,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
-  <div id="status" class="status">Meertalige Naamherkenning V17 geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Meertalige Naamherkenning V18 geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -1054,6 +1054,67 @@ function v16CleanCardName(name){
   n=n.replace(/\b(?:pokemon|pokémon)\s+card\b/ig,'').trim();
   return n;
 }
+
+async function v18ArtworkName(card){
+  // Japanse kaarten: tekst-OCR is vaak onbruikbaar.
+  // Daarom laten we Florence alleen naar het artwork kijken, zonder de Japanse tekstvlakken.
+  const crops=[
+    ai8Crop(card, Math.round(card.width*.06), Math.round(card.height*.12),
+                 Math.round(card.width*.88), Math.round(card.height*.48), 1500),
+    ai8Crop(card, Math.round(card.width*.10), Math.round(card.height*.17),
+                 Math.round(card.width*.80), Math.round(card.height*.40), 1500)
+  ];
+  const evidence=[];
+  for(const c of crops){
+    try{
+      const d=ai8FlattenText(await window.ZamexBrowserAI.detailed(ai8CanvasData(c,.97)));
+      if(d)evidence.push(d);
+    }catch(e){}
+  }
+  const all=evidence.join(' | ');
+  const poke=v16PokemonFromText(all);
+  if(poke){
+    let suffix='';
+    // Suffix comes from full-card OCR later; artwork itself only identifies the character.
+    return {name:poke,evidence:all};
+  }
+  return {name:'',evidence:all};
+}
+
+function v18NumberVariants(raw){
+  const s=String(raw||'').replace(/\D/g,'');
+  if(!s)return [];
+  const out=new Set([s,s.replace(/^0+(?=\d)/,'')]);
+  if(s.length===1){
+    for(let h=0;h<=3;h++) out.add(String(h*100+Number(s)));
+    out.add(s.padStart(3,'0'));
+  }else if(s.length===2){
+    out.add(s.padStart(3,'0'));
+    for(let h=1;h<=3;h++) out.add(String(h*100+Number(s)));
+  }
+  return [...out].filter(Boolean).slice(0,8);
+}
+
+async function v18JapaneseNumberCandidates(hints){
+  const found=new Map();
+  const nums=v18NumberVariants(hints.cardno);
+  if(!nums.length)return [];
+  for(const no of nums){
+    try{
+      const arr=await fetchJsonTimeout(
+        `https://api.tcgdex.net/v2/ja/cards?localId:eq=${encodeURIComponent(no)}&pagination:page=1&pagination:itemsPerPage=120`,
+        7000
+      );
+      if(Array.isArray(arr)){
+        for(const c of arr){
+          if(c?.id&&c?.image&&!found.has(c.id))found.set(c.id,{...c,lang:'ja'});
+        }
+      }
+    }catch(e){}
+  }
+  return [...found.values()].slice(0,180);
+}
+
 async function v16DirectBrowserName(card){
   const evidence=[];
   try{
@@ -1099,15 +1160,39 @@ async function recognizeWithBrowserAI(pair){
   const img=await loadImage(pair.front);
   const card=studioCardCropCanvas(img);
 
-  // V16: eerst alleen de kaartnaam uit de volledige kaart halen.
-  // Dit draait lokaal in de browser en is niet afhankelijk van TCGTracking.
+  // V18: eerst het ARTWORK zelf laten beschrijven.
+  // Dit omzeilt Japanse tekst/OCR en werkt op het afgebeelde Pokémon-personage.
+  try{
+    const art=await v18ArtworkName(card);
+    if(art?.name){
+      // Lees de volledige kaart alleen nog om ex/V/VMAX/VSTAR te behouden.
+      let suffix='';
+      try{
+        const full=ai8FlattenText(await window.ZamexBrowserAI.ocr(ai8CanvasData(card,.96)));
+        if(/VSTAR/i.test(full))suffix=' VSTAR';
+        else if(/VMAX/i.test(full))suffix=' VMAX';
+        else if(/\bex\b/i.test(full))suffix=' ex';
+        else if(/\bGX\b/i.test(full))suffix=' GX';
+        else if(/(?:^|[^A-Z])V(?:[^A-Z]|$)/i.test(full))suffix=' V';
+      }catch(e){}
+      return {
+        name:v16CleanCardName(art.name+suffix),set:'',cardno:'',setName:'',
+        confidence:78,
+        source:'V18 artwork-AI → Engelse Pokémonnaam',
+        scanInfo:`Artwork herkend als: ${art.name}${suffix} | ${String(art.evidence||'').slice(0,260)}`,
+        cropSource:card.dataset.cropSource||'Browser AI crop'
+      };
+    }
+  }catch(e){}
+
+  // Daarna de bestaande V17 volledige-kaart tekst/name route.
   try{
     const direct=await v16DirectBrowserName(card);
     if(direct?.name){
       return {
         name:direct.name,set:'',cardno:'',setName:'',
         confidence:72,
-        source:'V17 meertalige kaartnaamherkenning',
+        source:'V18 meertalige kaartnaamherkenning',
         scanInfo:`Florence/browser-AI naam: ${direct.name} | ${String(direct.evidence||'').slice(0,260)}`,
         cropSource:card.dataset.cropSource||'Browser AI crop'
       };
@@ -1130,9 +1215,9 @@ async function recognizeWithBrowserAI(pair){
     try{
       const exact=await lookupOpenTcgByIdentity(hints);
       if(exact?.name && exact?.cardno){
-        exact.source='V16 set/nummer OCR → exacte database';
+        exact.source='V18 set/nummer OCR → exacte database';
         exact.confidence=99;
-        exact.scanInfo=`V16 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
+        exact.scanInfo=`V18 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
         exact.cropSource=hints.cropSource;
         return exact;
       }
@@ -1142,6 +1227,20 @@ async function recognizeWithBrowserAI(pair){
   // 2) Kandidaten op kaartnummer en/of set, daarna artwork.
   let candidates=[]; let v12DisplayedBest=null;
   try{ candidates=await tcgdexCandidates(hints); }catch(e){}
+
+  // V18 Japanse fallback: OCR mist bij Japanse kaarten vaak een cijfer.
+  // Probeer daarom ook plausibele 3-cijferige localId-varianten in alleen de Japanse database.
+  if(hints.cardno){
+    try{
+      const extra=await v18JapaneseNumberCandidates(hints);
+      const seen=new Set(candidates.map(c=>(c.lang||'')+'|'+c.id));
+      for(const c of extra){
+        const k=(c.lang||'ja')+'|'+c.id;
+        if(!seen.has(k)){candidates.push(c);seen.add(k);}
+      }
+    }catch(e){}
+  }
+
   if(candidates.length){
     const scored=[];
     for(let i=0;i<candidates.length;i+=8){
@@ -1159,9 +1258,9 @@ async function recognizeWithBrowserAI(pair){
       let e=await enrichTcgdexMatch(best,hints);
       if(!e)e=await v12MetadataFromDisplayedCandidate(best,hints);
       if(e){
-        e.source='V16 referentiekaart-match';
+        e.source='V18 referentiekaart-match';
         e.confidence=Math.max(55,Math.round(best.imageScore||0));
-        e.scanInfo=`V16 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | beste artworkmatch ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}% | automatisch overgenomen`;
+        e.scanInfo=`V18 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | beste artworkmatch ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}% | automatisch overgenomen`;
         e.cropSource=hints.cropSource;
         return e;
       }
@@ -1190,7 +1289,7 @@ async function recognizeWithBrowserAI(pair){
         let e=await enrichTcgdexMatch(best,h2);
         if(!e)e=await v12MetadataFromDisplayedCandidate(best,h2);
         if(e){
-          e.source='V16 visuele referentiekaart-match';
+          e.source='V18 visuele referentiekaart-match';
           e.confidence=Math.max(55,Math.round(best.imageScore||0));
           e.scanInfo=`Beschrijving: ${desc.slice(0,180)} | beste artworkmatch ${Math.round(best.imageScore||0)}% | automatisch overgenomen`;
           e.cropSource=hints.cropSource;
@@ -1456,7 +1555,7 @@ $('recognize').onclick=async()=>{
        const pv=card?.querySelector('.recog-preview');
        if(pv)pv.src=rc.toDataURL('image/jpeg',.88);
        const dg=card?.querySelector('.diag');
-       if(dg)dg.textContent=`V17 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
+       if(dg)dg.textContent=`V18 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
      }catch(e){}
 
      // Geef de browser één frame om bovenstaande zichtbaar te maken.
@@ -1473,7 +1572,7 @@ $('recognize').onclick=async()=>{
        const dbg=card.querySelector('.diag');
        const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
        if(dbg){
-         dbg.textContent=`V17 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
+         dbg.textContent=`V18 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
        }
 
        card.classList.remove('recognizing');

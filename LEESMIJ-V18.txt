@@ -1,0 +1,13 @@
+ZamexCards Fotobatchbewerker V18
+
+Belangrijkste verbetering voor Japanse kaarten:
+- Niet meer afhankelijk van Japanse OCR om de Pokémonnaam te vinden.
+- Florence-2 bekijkt eerst alleen het artwork/grote illustratievlak.
+- Herkende Pokémon wordt als officiële Engelse naam opgeslagen.
+- ex / V / VMAX / VSTAR wordt daarna vanaf de volledige kaart toegevoegd indien herkenbaar.
+- Extra Japanse TCGdex fallback op plausibele kaartnummers als OCR een cijfer mist.
+- Engelse herkenning uit V16/V17 blijft behouden.
+- Bestandsnamen blijven alleen nummer + kaartnaam.
+- Watermerkbreedte blijft standaard 28.
+
+Upload op GitHub alleen index.html uit deze ZIP.
