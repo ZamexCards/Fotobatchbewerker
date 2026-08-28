@@ -1,0 +1,15 @@
+ZamexCards Fotobatchbewerker V13
+
+Belangrijkste wijziging:
+- Alleen de KAARTNAAM wordt nog gebruikt in de ZIP-bestandsnaam.
+- Set en kaartnummer worden niet meer toegevoegd aan de bestandsnaam.
+- Set en kaartnummer mogen intern nog helpen bij herkenning.
+- Zodra de referentiekaart een naam oplevert, kan die naam worden overgenomen.
+- Watermerk breedte blijft standaard 28.
+
+Voorbeeld:
+001 Charizard - Voorkant
+001 Charizard - Achterkant
+
+GitHub:
+Vervang alleen index.html door de index.html uit deze ZIP.
