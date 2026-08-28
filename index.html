@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Studio herkenning V3</title>
+<title>ZamexCards Fotobatchbewerker – Studio herkenning V4</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -211,7 +211,7 @@ h2{color:#fff;font-size:28px}
     <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
-  <div id="status" class="status">Studio-herkenning V3 geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Studio-herkenning V4 geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -312,7 +312,7 @@ function extractCardNumber(text){
 function extractPrintedIdentity(text){
   const s=String(text||'').toUpperCase().replace(/[|]/g,'/').replace(/\s+/g,' ');
   // Voorbeelden uit de ZamexCards foto's: MEP 032, SV4K 092/066, SV4A 192/190.
-  let m=s.match(/\b([A-Z]{1,5}\d{0,2}[A-Z]?)\s*[- ]?\s*(\d{1,4})(?:\s*\/\s*(\d{1,4}))?\b/);
+  let m=s.match(/\b([A-Z]{2,5}\d{0,2}[A-Z]?)\b(?:\s+[A-Z0-9|\-]{1,4}){0,2}\s+(\d{2,4})(?:\s*\/\s*(\d{2,4}))?\b/);
   if(m) return {setHint:m[1],cardno:m[2].padStart(m[2].length,'0'),printedTotal:m[3]||''};
   return {setHint:'',cardno:'',printedTotal:''};
 }
@@ -391,22 +391,62 @@ async function recognitionCardCanvas(img){
   return out;
 }
 function studioCardCropCanvas(img){
-  // Kalibratie op de originele ZamexCards foto's (1153 x 2048).
-  // Gemeten kaartzone: ongeveer x 20.6–52.8%, y 22.1–47.0%.
-  // Iets marge rondom de kaart zodat geen kaartnummer/rand wordt afgesneden.
-  const rx=.198, ry=.218, rw=.334, rh=.252;
-  const sx=Math.max(0,Math.round(img.width*rx));
-  const sy=Math.max(0,Math.round(img.height*ry));
-  const sw=Math.min(img.width-sx,Math.round(img.width*rw));
-  const sh=Math.min(img.height-sy,Math.round(img.height*rh));
-  const out=document.createElement('canvas');
-  out.width=630; out.height=880;
+  // V4: vind eerst de felgroene ZamexCards-kaarthouder.
+  // Daarmee bepalen we de kaartpositie per foto; dit werkt ook wanneer de
+  // camera enkele centimeters hoger/lager of links/rechts staat.
+  const probe=document.createElement('canvas');
+  const pw=300, ph=Math.max(1,Math.round(img.height*pw/img.width));
+  probe.width=pw;probe.height=ph;
+  const pctx=probe.getContext('2d',{willReadFrequently:true});
+  pctx.drawImage(img,0,0,pw,ph);
+  const d=pctx.getImageData(0,0,pw,ph).data;
+  let bestY=-1,bestCount=0,bestMin=0,bestMax=0;
+  const y0=Math.round(ph*.42), y1=Math.round(ph*.72);
+  for(let y=y0;y<y1;y++){
+    let count=0,minX=pw,maxX=-1;
+    for(let x=0;x<pw;x++){
+      const i=(y*pw+x)*4, r=d[i],g=d[i+1],bl=d[i+2];
+      // De houder is veel groener/verzadigder dan achtergrond en logo's.
+      if(g>75 && g>r*1.28 && g>bl*1.18){
+        count++; if(x<minX)minX=x;if(x>maxX)maxX=x;
+      }
+    }
+    // Houder vormt een brede horizontale groene strook.
+    if(count>bestCount && maxX-minX>75){bestCount=count;bestY=y;bestMin=minX;bestMax=maxX;}
+  }
+
+  let sx,sy,sw,sh,source='ZamexCards studio fallback';
+  if(bestY>=0){
+    // Zoek de bovenrand van dezelfde brede groene houder.
+    let top=bestY;
+    for(let y=bestY;y>=y0;y--){
+      let count=0,minX=pw,maxX=-1;
+      for(let x=Math.max(0,bestMin-8);x<=Math.min(pw-1,bestMax+8);x++){
+        const i=(y*pw+x)*4,r=d[i],g=d[i+1],bl=d[i+2];
+        if(g>70 && g>r*1.22 && g>bl*1.15){count++;if(x<minX)minX=x;if(x>maxX)maxX=x;}
+      }
+      if(count>45 && maxX-minX>70)top=y; else if(bestY-y>30)break;
+    }
+    const scale=img.width/pw;
+    const standL=bestMin*scale, standR=bestMax*scale, standTop=top*scale;
+    const standW=standR-standL;
+    // Gemeten op de 9 originele ZamexCards-foto's:
+    // kaartbreedte ≈ 76–82% van houderbreedte; hoogte ≈ 1.39× breedte.
+    sw=standW*.80; sh=sw*1.395;
+    sx=(standL+standR)/2-sw/2;
+    sy=standTop-sh+4*scale;
+    source='groene ZamexCards-houder';
+  }else{
+    sx=img.width*.225; sy=img.height*.285; sw=img.width*.36; sh=sw*1.395;
+  }
+  sx=Math.max(0,sx);sy=Math.max(0,sy);sw=Math.min(sw,img.width-sx);sh=Math.min(sh,img.height-sy);
+
+  const out=document.createElement('canvas');out.width=630;out.height=880;
   const x=out.getContext('2d',{alpha:false});
   x.fillStyle='#fff';x.fillRect(0,0,out.width,out.height);
   x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';
   x.drawImage(img,sx,sy,sw,sh,0,0,out.width,out.height);
-  out.dataset.cropSource='ZamexCards studio-profiel';
-  out.dataset.cropConfidence='100';
+  out.dataset.cropSource=source;out.dataset.cropConfidence=bestY>=0?'100':'60';
   return out;
 }
 async function readRecognitionHints(pair){
@@ -451,12 +491,25 @@ async function tcgdexCandidates(hints){
   const add=(arr,lang)=>{if(!Array.isArray(arr))return;for(const c of arr){if(!c?.id||!c?.image)continue;const k=lang+'|'+c.id;if(!found.has(k))found.set(k,{...c,lang});}};
   const requests=[];
   const nums=[];
+  // Snelste/betrouwbaarste route: op veel kaarten is de geprinte setcode
+  // gelijk aan (of zeer dicht bij) de TCGdex set-id. Probeer daarom eerst
+  // directe kaart-ID's zoals sv4a-192, sv4k-092 en mep-042.
+  if(hints.setHint && hints.cardno){
+    const setVariants=[hints.setHint,hints.setHint.toLowerCase(),hints.setHint.toUpperCase()];
+    const noVariants=[hints.cardno,hints.cardno.replace(/^0+(?=\d)/,'')].filter(Boolean);
+    for(const lang of TCGDEX_LANGS)for(const s of [...new Set(setVariants)])for(const no of [...new Set(noVariants)]){
+      requests.push((async()=>{try{
+        const c=await fetchJsonTimeout(`https://api.tcgdex.net/v2/${lang}/cards/${encodeURIComponent(s+'-'+no)}`,6500);
+        if(c?.id&&c?.image)add([c],lang);
+      }catch(e){}})());
+    }
+  }
   if(hints.cardno){
     nums.push(hints.cardno);
     const stripped=hints.cardno.replace(/^0+(?=\d)/,''); if(stripped&&stripped!==hints.cardno)nums.push(stripped);
   }
   for(const lang of TCGDEX_LANGS){
-    for(const no of nums){requests.push((async()=>{try{add(await fetchJsonTimeout(`https://api.tcgdex.net/v2/${lang}/cards?localId=eq:${encodeURIComponent(no)}&pagination:page=1&pagination:itemsPerPage=120`),lang)}catch(e){}})());}
+    for(const no of nums){requests.push((async()=>{try{add(await fetchJsonTimeout(`https://api.tcgdex.net/v2/${lang}/cards?localId:eq=${encodeURIComponent(no)}&pagination:page=1&pagination:itemsPerPage=120`),lang)}catch(e){}})());}
   }
   // Naam is een extra kandidaatbron, niet de beslisser. Alleen doen als OCR iets bruikbaars gaf.
   if(hints.name && normName(hints.name).length>=4){
