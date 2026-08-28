@@ -1,0 +1,21 @@
+ZamexCards Fotobatchbewerker V12
+
+BELANGRIJKSTE FIX
+Als de pagina een referentiekaart als afbeelding heeft gevonden, gebruikt V12 exact diezelfde databasekandidaat als bron voor de metadata.
+
+Dus:
+referentie-afbeelding gevonden
+→ kaartobject/ID uitlezen
+→ naam ophalen
+→ set ophalen
+→ kaartnummer ophalen
+→ velden invullen
+→ resultaat bewaren
+→ dezelfde gegevens in ZIP-bestandsnaam gebruiken
+
+OCR is nog steeds nuttig om kandidaten te vinden, maar kan een correct gevonden referentiekaart niet meer weggooien.
+
+Watermerk breedte blijft standaard 28.
+Timingfix blijft behouden: eerst herkenning afronden, daarna ZIP.
+
+GitHub: vervang alleen index.html.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Browser AI Matcher V11</title>
+<title>ZamexCards Fotobatchbewerker – Browser AI Matcher V12</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -204,7 +204,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Browser AI V11 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Browser AI V12 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -227,7 +227,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Browser AI V11</strong>
+      <strong>Browser AI V12</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -243,7 +243,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
-  <div id="status" class="status">Browser AI Matcher V11 geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Browser AI Matcher V12 geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -778,6 +778,69 @@ async function scoreCandidate(candidate,hints,userCanvas){
     return {...candidate,imageScore,nameScore,numberScore,total};
   }catch(e){return {...candidate,imageScore:-1,nameScore:0,numberScore:0,total:-1}}
 }
+
+async function v12MetadataFromDisplayedCandidate(best,hints){
+  if(!best)return null;
+  const c=best.c||best.card||best.candidate||best;
+  let detail=null;
+
+  // The displayed reference image already belongs to this candidate.
+  // First try to fetch its complete TCGdex card object.
+  const id=c?.id||best?.id||'';
+  if(id){
+    for(const lang of ['en','ja']){
+      try{
+        const r=await fetch(`https://api.tcgdex.net/v2/${lang}/cards/${encodeURIComponent(id)}`);
+        if(r.ok){detail=await r.json(); if(detail)break;}
+      }catch(e){}
+    }
+  }
+
+  const d=detail||c||{};
+  const setObj=d.set||c?.set||{};
+  let name=d.name||c?.name||best?.name||'';
+  let cardno=String(d.localId||d.cardno||d.number||c?.localId||c?.cardno||c?.number||hints?.cardno||'').trim();
+  let set=String(
+    setObj.abbreviation||setObj.abbr||setObj.code||setObj.id||
+    d.setCode||d.set_id||c?.setCode||c?.set_id||hints?.setHint||''
+  ).trim();
+
+  // TCGdex IDs are often set-cardnumber. Use that only as a fallback.
+  if((!set || !cardno) && id){
+    const m=String(id).match(/^(.+)-([A-Za-z0-9]+)$/);
+    if(m){
+      if(!set)set=m[1];
+      if(!cardno)cardno=m[2];
+    }
+  }
+
+  // Prefer a human abbreviation when the set detail is available.
+  if(setObj?.id && (!setObj.abbreviation && !setObj.abbr)){
+    try{
+      for(const lang of ['en','ja']){
+        const r=await fetch(`https://api.tcgdex.net/v2/${lang}/sets/${encodeURIComponent(setObj.id)}`);
+        if(r.ok){
+          const sd=await r.json();
+          const ab=sd?.abbreviation||sd?.abbr||sd?.code;
+          if(ab){set=String(ab);break;}
+        }
+      }
+    }catch(e){}
+  }
+
+  if(!name || !cardno)return null;
+  return {
+    name:String(name).trim(),
+    set:String(set||'').trim().toUpperCase(),
+    cardno:String(cardno).trim(),
+    setName:setObj?.name||d?.setName||'',
+    source:'V12 getoonde referentiekaart',
+    confidence:Math.max(60,Math.round(best.imageScore||best.score||0)),
+    cropSource:hints?.cropSource||'ZamexCards studio-profiel',
+    scanInfo:`Getoonde referentiekaart direct overgenomen${id?' | ID '+id:''} | artwork ${Math.round(best.imageScore||best.score||0)}%`
+  };
+}
+
 async function enrichTcgdexMatch(best,hints){
   let full=null;
   try{full=await fetchJsonTimeout(`https://api.tcgdex.net/v2/${best.lang}/cards/${encodeURIComponent(best.id)}`)}catch(e){}
@@ -947,9 +1010,9 @@ async function recognizeWithBrowserAI(pair){
     try{
       const exact=await lookupOpenTcgByIdentity(hints);
       if(exact?.name && exact?.cardno){
-        exact.source='V11 set/nummer OCR → exacte database';
+        exact.source='V12 set/nummer OCR → exacte database';
         exact.confidence=99;
-        exact.scanInfo=`V11 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
+        exact.scanInfo=`V12 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
         exact.cropSource=hints.cropSource;
         return exact;
       }
@@ -957,7 +1020,7 @@ async function recognizeWithBrowserAI(pair){
   }
 
   // 2) Kandidaten op kaartnummer en/of set, daarna artwork.
-  let candidates=[];
+  let candidates=[]; let v12DisplayedBest=null;
   try{ candidates=await tcgdexCandidates(hints); }catch(e){}
   if(candidates.length){
     const scored=[];
@@ -967,16 +1030,18 @@ async function recognizeWithBrowserAI(pair){
     }
     scored.sort((a,b)=>b.total-a.total);
     const best=scored[0], second=scored[1];
+    if(best)v12DisplayedBest=best;
     const margin=best&&second ? best.imageScore-second.imageScore : 99;
 
     // V10 accepteert een nummermatch met redelijke artworkmatch,
     // of een zeer sterke unieke artworkmatch.
     if(best){
-      const e=await enrichTcgdexMatch(best,hints);
+      let e=await enrichTcgdexMatch(best,hints);
+      if(!e)e=await v12MetadataFromDisplayedCandidate(best,hints);
       if(e){
-        e.source='V11 beste database/artworkmatch';
+        e.source='V12 referentiekaart-match';
         e.confidence=Math.max(55,Math.round(best.imageScore||0));
-        e.scanInfo=`V11 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | beste artworkmatch ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}% | automatisch overgenomen`;
+        e.scanInfo=`V12 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | beste artworkmatch ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}% | automatisch overgenomen`;
         e.cropSource=hints.cropSource;
         return e;
       }
@@ -1002,9 +1067,10 @@ async function recognizeWithBrowserAI(pair){
       const best=scored[0], second=scored[1];
       const margin=best&&second?best.imageScore-second.imageScore:99;
       if(best){
-        const e=await enrichTcgdexMatch(best,h2);
+        let e=await enrichTcgdexMatch(best,h2);
+        if(!e)e=await v12MetadataFromDisplayedCandidate(best,h2);
         if(e){
-          e.source='V11 beste visuele database/artworkmatch';
+          e.source='V12 visuele referentiekaart-match';
           e.confidence=Math.max(55,Math.round(best.imageScore||0));
           e.scanInfo=`Beschrijving: ${desc.slice(0,180)} | beste artworkmatch ${Math.round(best.imageScore||0)}% | automatisch overgenomen`;
           e.cropSource=hints.cropSource;
@@ -1014,6 +1080,10 @@ async function recognizeWithBrowserAI(pair){
     }
   }catch(e){}
 
+  if(v12DisplayedBest){
+    const e=await v12MetadataFromDisplayedCandidate(v12DisplayedBest,hints);
+    if(e)return e;
+  }
   return null;
 }
 
@@ -1256,7 +1326,7 @@ $('recognize').onclick=async()=>{
        const pv=card?.querySelector('.recog-preview');
        if(pv)pv.src=rc.toDataURL('image/jpeg',.88);
        const dg=card?.querySelector('.diag');
-       if(dg)dg.textContent=`V11 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
+       if(dg)dg.textContent=`V12 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
      }catch(e){}
 
      // Geef de browser één frame om bovenstaande zichtbaar te maken.
@@ -1273,7 +1343,7 @@ $('recognize').onclick=async()=>{
        const dbg=card.querySelector('.diag');
        const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
        if(dbg){
-         dbg.textContent=`V11 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
+         dbg.textContent=`V12 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
        }
 
        card.classList.remove('recognizing');
@@ -1284,7 +1354,7 @@ $('recognize').onclick=async()=>{
          card.title=`${r.source||'Herkenning'}${r.confidence?' '+Math.round(r.confidence)+'%':''}${r.setName?' – '+r.setName:''}`;
        }else{
          card.classList.add('not-recognized');
-         if(st){st.className='recog-state warn';st.textContent='Beste gevonden kaart wordt overgenomen.';}
+         if(st){st.className='recog-state warn';st.textContent='Referentiekaart wordt overgenomen.';}
        }
      }
 
@@ -1458,7 +1528,14 @@ $('download').onclick=async()=>{
  if(recognitionBusy){setStatus('Wacht tot de kaart-herkenning volledig klaar is.','warn');return}
  if(!pairs.length){setStatus('Koppel eerst de foto\'s.','warn');return}
  if(!recognitionCompleted){setStatus('Klik eerst op “Kaarten automatisch herkennen”. De ZIP-export start pas als die stap volledig klaar is.','warn');return}
- syncInputs(); if(!watermarkImg && $('watermark').files[0]) watermarkImg=await loadImage($('watermark').files[0]);
+ syncInputs();
+ pairs.forEach(p=>{
+   if(p.recognized){
+     p.name=p.name||p.recognized.name||'';
+     p.set=p.set||p.recognized.set||'';
+     p.cardno=p.cardno||p.recognized.cardno||'';
+   }
+ }); if(!watermarkImg && $('watermark').files[0]) watermarkImg=await loadImage($('watermark').files[0]);
  const zip=new JSZip(); setStatus('Afbeeldingen worden verwerkt...'); $('bar').style.width='0%'; let done=0,total=pairs.reduce((a,p)=>a+(p.back?2:1),0);
  const zipLayout=$('zipLayout')?.value||'flat';
  for(const p of pairs){
