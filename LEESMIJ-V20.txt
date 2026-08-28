@@ -1,0 +1,19 @@
+ZamexCards Fotobatchbewerker V20
+
+Nieuw voor Japanse kaarten:
+- Extra browser-AI model (CLIP) wordt alleen geladen wanneer Florence geen betrouwbare Pokémonnaam vindt.
+- CLIP bekijkt alleen het artwork en vergelijkt dit met Pokémon-kandidaten.
+- De beste kandidaten worden daarna geverifieerd tegen echte Japanse TCGdex kaartafbeeldingen.
+- OCR/set/kaartnummer zijn niet meer noodzakelijk voor deze route.
+- Trainers blijven via naam-OCR/Japanse vertaling en bestaande fallbacks lopen.
+- V19 false-positive blokkering (Tail / Hands / Wing) blijft behouden.
+- Engelse herkenning blijft behouden.
+- ZIP-bestandsnaam blijft alleen nummer + Engelse kaartnaam.
+- Watermerkbreedte blijft standaard 28.
+
+Let op:
+Bij de eerste moeilijke/Japanse kaart kan de browser een tweede AI-model downloaden.
+Daarna blijft dit normaal in de browsercache.
+
+GitHub Pages:
+Vervang alleen index.html door de versie uit deze ZIP.

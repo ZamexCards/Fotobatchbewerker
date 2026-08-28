@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Meertalige Naamherkenning V19</title>
+<title>ZamexCards Fotobatchbewerker – Meertalige Naamherkenning V20</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -204,7 +204,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Meertalige Naamherkenning V19 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Meertalige Naamherkenning V20 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -227,7 +227,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Meertalige Naamherkenning V19</strong>
+      <strong>Meertalige Naamherkenning V20</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -243,7 +243,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
-  <div id="status" class="status">Meertalige Naamherkenning V19 geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Meertalige Naamherkenning V20 geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -1093,6 +1093,118 @@ function v19LooksLikeBadCaptionWord(name){
     ["card","character","pokemon","pokémon","girl","boy","woman","man","face","body","background"].includes(n);
 }
 
+
+let V20_SPECIES_CACHE=null;
+
+function v20PrettySpecies(slug){
+  return String(slug||'')
+    .split('-')
+    .map(x=>x ? x[0].toUpperCase()+x.slice(1) : '')
+    .join(' ')
+    .replace(/\bMr Mime\b/i,'Mr. Mime')
+    .replace(/\bMime Jr\b/i,'Mime Jr.')
+    .replace(/\bMr Rime\b/i,'Mr. Rime')
+    .replace(/\bHo Oh\b/i,'Ho-Oh')
+    .replace(/\bPorygon Z\b/i,'Porygon-Z');
+}
+
+async function v20PokemonSpecies(){
+  if(V20_SPECIES_CACHE)return V20_SPECIES_CACHE;
+  try{
+    const j=await fetchJsonTimeout('https://pokeapi.co/api/v2/pokemon-species?limit=1200',9000);
+    const arr=Array.isArray(j?.results)?j.results:[];
+    V20_SPECIES_CACHE=arr.map(x=>{
+      const m=String(x.url||'').match(/\/pokemon-species\/(\d+)\/?$/);
+      return {id:m?Number(m[1]):0,label:v20PrettySpecies(x.name),slug:x.name};
+    }).filter(x=>x.id&&x.label);
+  }catch(e){
+    V20_SPECIES_CACHE=[];
+  }
+  return V20_SPECIES_CACHE;
+}
+
+async function v20JapaneseDexCandidates(dexId){
+  const urls=[
+    `https://api.tcgdex.net/v2/ja/cards?dexId=${encodeURIComponent(dexId)}&pagination:page=1&pagination:itemsPerPage=180`,
+    `https://api.tcgdex.net/v2/ja/cards?dexId:eq=${encodeURIComponent(dexId)}&pagination:page=1&pagination:itemsPerPage=180`
+  ];
+  const found=new Map();
+  for(const url of urls){
+    try{
+      const arr=await fetchJsonTimeout(url,8000);
+      if(Array.isArray(arr)){
+        for(const c of arr){
+          if(c?.id&&c?.image&&!found.has(c.id))found.set(c.id,{...c,lang:'ja'});
+        }
+      }
+    }catch(e){}
+    if(found.size)break;
+  }
+  return [...found.values()];
+}
+
+async function v20ClipJapaneseArtworkMatch(card){
+  if(!window.ZamexBrowserAI?.classifyPokemon)return null;
+  const species=await v20PokemonSpecies();
+  if(!species.length)return null;
+
+  // Only the central artwork: Japanese text/layout should not influence CLIP.
+  const art=ai8Crop(card,
+    Math.round(card.width*.08),Math.round(card.height*.12),
+    Math.round(card.width*.84),Math.round(card.height*.48),1400
+  );
+  const labels=species.map(x=>x.label);
+  let ranked=[];
+  try{
+    ranked=await window.ZamexBrowserAI.classifyPokemon(ai8CanvasData(art,.96),labels);
+  }catch(e){
+    return null;
+  }
+  if(!Array.isArray(ranked)||!ranked.length)return null;
+
+  // Verify the CLIP guesses against real Japanese TCGdex card artwork.
+  for(const guess of ranked.slice(0,5)){
+    const sp=species.find(x=>x.label===guess.label);
+    if(!sp)continue;
+    const candidates=await v20JapaneseDexCandidates(sp.id);
+    if(!candidates.length)continue;
+
+    const hints={name:sp.label,setHint:'',cardno:'',rawBottom:'',cardCanvas:card,cropSource:card.dataset.cropSource||'V20 artwork'};
+    const scored=[];
+    for(let i=0;i<Math.min(candidates.length,140);i+=8){
+      const part=await Promise.all(candidates.slice(i,i+8).map(c=>scoreCandidate(c,hints,card)));
+      scored.push(...part.filter(Boolean));
+    }
+    scored.sort((a,b)=>(b.imageScore||0)-(a.imageScore||0));
+    const best=scored[0], second=scored[1];
+    const bs=best?.imageScore||0, ss=second?.imageScore||0, margin=bs-ss;
+
+    // Database artwork is the final authority; CLIP only narrows Pokémon identity.
+    if(best && (bs>=64 || (bs>=55 && margin>=4))){
+      let suffix='';
+      try{
+        const full=ai8FlattenText(await window.ZamexBrowserAI.ocr(ai8CanvasData(card,.96)));
+        if(/VSTAR/i.test(full))suffix=' VSTAR';
+        else if(/VMAX/i.test(full))suffix=' VMAX';
+        else if(/\bex\b/i.test(full))suffix=' ex';
+        else if(/\bGX\b/i.test(full))suffix=' GX';
+        else if(/(?:^|[^A-Z])V(?:[^A-Z]|$)/i.test(full))suffix=' V';
+      }catch(e){}
+      return {
+        name:v16CleanCardName(sp.label+suffix),
+        set:'',
+        cardno:best.localId||'',
+        setName:'',
+        confidence:Math.max(70,Math.round(bs)),
+        source:'V20 CLIP → Japanse TCGdex artworkmatch',
+        scanInfo:`CLIP: ${sp.label} (${Math.round((guess.score||0)*100)}%) | Japanse artworkmatch ${Math.round(bs)}% | marge ${Math.round(margin)}%`,
+        cropSource:card.dataset.cropSource||'V20 artwork'
+      };
+    }
+  }
+  return null;
+}
+
 async function v18ArtworkName(card){
   // Japanse kaarten: tekst-OCR is vaak onbruikbaar.
   // Daarom laten we Florence alleen naar het artwork kijken, zonder de Japanse tekstvlakken.
@@ -1216,21 +1328,28 @@ async function recognizeWithBrowserAI(pair){
       return {
         name:v16CleanCardName(art.name+suffix),set:'',cardno:'',setName:'',
         confidence:78,
-        source:'V19 artwork-AI → gevalideerde Pokémonnaam',
+        source:'V20 artwork-AI → gevalideerde Pokémonnaam',
         scanInfo:`Artwork herkend als: ${art.name}${suffix} | ${String(art.evidence||'').slice(0,260)}`,
         cropSource:card.dataset.cropSource||'Browser AI crop'
       };
     }
   }catch(e){}
 
-  // Daarna de bestaande V17 volledige-kaart tekst/name route.
+  // V20: als Florence het personage niet bij naam noemt, gebruik CLIP om de
+  // Pokémon-identiteit te raden en verifieer die tegen echte Japanse TCGdex-artworks.
+  try{
+    const clipMatch=await v20ClipJapaneseArtworkMatch(card);
+    if(clipMatch?.name)return clipMatch;
+  }catch(e){}
+
+  // Daarna de bestaande volledige-kaart tekst/name route, o.a. voor Trainers.
   try{
     const direct=await v16DirectBrowserName(card);
     if(direct?.name){
       return {
         name:direct.name,set:'',cardno:'',setName:'',
         confidence:72,
-        source:'V19 meertalige kaartnaamherkenning',
+        source:'V20 meertalige kaartnaamherkenning',
         scanInfo:`Florence/browser-AI naam: ${direct.name} | ${String(direct.evidence||'').slice(0,260)}`,
         cropSource:card.dataset.cropSource||'Browser AI crop'
       };
@@ -1253,9 +1372,9 @@ async function recognizeWithBrowserAI(pair){
     try{
       const exact=await lookupOpenTcgByIdentity(hints);
       if(exact?.name && exact?.cardno){
-        exact.source='V19 set/nummer OCR → exacte database';
+        exact.source='V20 set/nummer OCR → exacte database';
         exact.confidence=99;
-        exact.scanInfo=`V19 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
+        exact.scanInfo=`V20 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
         exact.cropSource=hints.cropSource;
         return exact;
       }
@@ -1296,9 +1415,9 @@ async function recognizeWithBrowserAI(pair){
       let e=await enrichTcgdexMatch(best,hints);
       if(!e)e=await v12MetadataFromDisplayedCandidate(best,hints);
       if(e){
-        e.source='V19 referentiekaart-match';
+        e.source='V20 referentiekaart-match';
         e.confidence=Math.max(55,Math.round(best.imageScore||0));
-        e.scanInfo=`V19 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | beste artworkmatch ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}% | automatisch overgenomen`;
+        e.scanInfo=`V20 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | beste artworkmatch ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}% | automatisch overgenomen`;
         e.cropSource=hints.cropSource;
         return e;
       }
@@ -1327,7 +1446,7 @@ async function recognizeWithBrowserAI(pair){
         let e=await enrichTcgdexMatch(best,h2);
         if(!e)e=await v12MetadataFromDisplayedCandidate(best,h2);
         if(e){
-          e.source='V19 visuele referentiekaart-match';
+          e.source='V20 visuele referentiekaart-match';
           e.confidence=Math.max(55,Math.round(best.imageScore||0));
           e.scanInfo=`Beschrijving: ${desc.slice(0,180)} | beste artworkmatch ${Math.round(best.imageScore||0)}% | automatisch overgenomen`;
           e.cropSource=hints.cropSource;
@@ -1593,7 +1712,7 @@ $('recognize').onclick=async()=>{
        const pv=card?.querySelector('.recog-preview');
        if(pv)pv.src=rc.toDataURL('image/jpeg',.88);
        const dg=card?.querySelector('.diag');
-       if(dg)dg.textContent=`V19 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
+       if(dg)dg.textContent=`V20 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
      }catch(e){}
 
      // Geef de browser één frame om bovenstaande zichtbaar te maken.
@@ -1610,7 +1729,7 @@ $('recognize').onclick=async()=>{
        const dbg=card.querySelector('.diag');
        const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
        if(dbg){
-         dbg.textContent=`V19 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
+         dbg.textContent=`V20 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
        }
 
        card.classList.remove('recognizing');
@@ -1824,10 +1943,41 @@ import {
   AutoProcessor,
   AutoTokenizer,
   RawImage,
+  pipeline,
 } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
 
 const MODEL="onnx-community/Florence-2-base-ft";
+const CLIP_MODEL="Xenova/clip-vit-base-patch32";
 let model=null, processor=null, tokenizer=null, loading=null;
+let clipClassifier=null, clipLoading=null;
+
+async function ensureClip(){
+  if(clipClassifier)return clipClassifier;
+  if(clipLoading)return clipLoading;
+  clipLoading=(async()=>{
+    status("Extra artworkmodel laden voor moeilijke/Japanse kaarten…");
+    clipClassifier=await pipeline("zero-shot-image-classification",CLIP_MODEL,{device:"webgpu"});
+    status("Klaar – AI draait in deze browser","ok");
+    return clipClassifier;
+  })().catch(e=>{clipLoading=null;throw e;});
+  return clipLoading;
+}
+
+async function classifyPokemon(dataURL,labels){
+  const clf=await ensureClip();
+  const winners=[];
+  const size=180;
+  for(let i=0;i<labels.length;i+=size){
+    const chunk=labels.slice(i,i+size);
+    const out=await clf(dataURL,chunk);
+    if(Array.isArray(out))winners.push(...out.slice(0,3));
+  }
+  winners.sort((a,b)=>(b.score||0)-(a.score||0));
+  const rerank=[...new Set(winners.slice(0,24).map(x=>x.label))];
+  if(!rerank.length)return [];
+  const final=await clf(dataURL,rerank);
+  return Array.isArray(final)?final.slice(0,8):[];
+}
 
 function status(msg,state=""){
   const el=document.getElementById("ai8status");
@@ -1870,7 +2020,8 @@ async function run(dataURL,task){
 window.ZamexBrowserAI={
   ensure,
   ocr:(dataURL)=>run(dataURL,"<OCR>"),
-  detailed:(dataURL)=>run(dataURL,"<MORE_DETAILED_CAPTION>")
+  detailed:(dataURL)=>run(dataURL,"<MORE_DETAILED_CAPTION>"),
+  classifyPokemon
 };
 if(navigator.gpu) status("WebGPU beschikbaar – model wordt geladen bij de eerste kaart","ok");
 else status("WebGPU ontbreekt – gebruik recente Chrome of Edge","bad");
