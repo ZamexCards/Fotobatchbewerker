@@ -479,18 +479,78 @@ async function recognizeHybrid(pair){
   // Laat liever een veld leeg dan OCR-onzin als definitief resultaat te gebruiken.
   return {name:'',set:'',cardno:hints.cardno||'',confidence:0,source:'geen betrouwbare match'};
 }
+async function canvasToScanDataUrl(source){
+  // TCGTracking accepteert maximaal 100 KB decoded. Houd bewust marge over.
+  const maxBytes=90000;
+  let maxW=360;
+  for(let attempt=0;attempt<5;attempt++){
+    const scale=Math.min(1,maxW/source.width);
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(source.width*scale));
+    c.height=Math.max(1,Math.round(source.height*scale));
+    const x=c.getContext('2d',{alpha:false});
+    x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+    x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';
+    x.drawImage(source,0,0,c.width,c.height);
+    for(const q of [.64,.55,.46,.38,.32]){
+      const url=c.toDataURL('image/jpeg',q);
+      const b64=url.split(',')[1]||'';
+      const bytes=Math.floor(b64.length*3/4);
+      if(bytes<=maxBytes)return {url,bytes,width:c.width,height:c.height};
+    }
+    maxW=Math.round(maxW*.82);
+  }
+  return null;
+}
 async function recognizeByImage(pair){
-  // Bestaande externe beeldscanner als reserve. De hoofdroute is recognizeHybrid().
+  // Zelfstandige beeldherkenning: deze route werkt ook als OCR niets kan lezen.
   try{
-    const img=await loadImage(pair.front);const crop=studioCardCropCanvas(img);
-    const dataUrl=await new Promise(resolve=>crop.toBlob(blob=>{if(!blob)return resolve(null);const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.readAsDataURL(blob)},'image/jpeg',.62));
-    if(!dataUrl)return null;
-    const r=await fetch('https://openapi.tcgtracking.com/v1/scan',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({game_id:3,limit:3,image:dataUrl})});
-    if(!r.ok)return null;const data=await r.json();const best=Array.isArray(data?.results)?data.results[0]:null;if(!best||Number(best.score||0)<72)return null;
-    const pr=await fetch(`https://openapi.tcgtracking.com/v1/products/${encodeURIComponent(best.product_id)}`,{cache:'no-store'});if(!pr.ok)return null;let obj=await pr.json();const product=obj?.product||obj?.data?.product||obj?.data||obj;
+    const img=await loadImage(pair.front);
+    const crop=studioCardCropCanvas(img);
+    const packed=await canvasToScanDataUrl(crop);
+    if(!packed)return null;
+
+    // 3 = Pokemon internationaal, 85 = Pokemon Japan.
+    // De Scan API accepteert alleen limit 5 of 10 (niet 3).
+    const gameIds=[3,85];
+    const matches=[];
+    for(const gameId of gameIds){
+      try{
+        const r=await fetch('https://openapi.tcgtracking.com/v1/scan',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          cache:'no-store',
+          body:JSON.stringify({game_id:gameId,limit:5,image:packed.url})
+        });
+        if(!r.ok){
+          const txt=await r.text().catch(()=>'');
+          console.warn('TCGTracking scan',gameId,'HTTP',r.status,txt.slice(0,180));
+          continue;
+        }
+        const data=await r.json();
+        const rs=Array.isArray(data?.results)?data.results:[];
+        for(const m of rs)if(m?.product_id)matches.push({...m,gameId});
+      }catch(e){console.warn('TCGTracking scan error',gameId,e)}
+    }
+    if(!matches.length)return null;
+    matches.sort((a,b)=>Number(b.score||0)-Number(a.score||0));
+    const best=matches[0];
+    if(Number(best.score||0)<60)return null;
+
+    const pr=await fetch(`https://openapi.tcgtracking.com/v1/products/${encodeURIComponent(best.product_id)}`,{cache:'no-store'});
+    if(!pr.ok)return null;
+    const obj=await pr.json();
+    const product=obj?.product||obj?.data?.product||obj?.data||obj;
     if(!product?.name)return null;
-    return {name:String(product.name).trim(),set:String(product.set_abbr||product.set_code||product.set_name||'').trim().toUpperCase(),cardno:String(product.number||product.collector_number||'').trim(),setName:String(product.set_name||'').trim(),confidence:Number(best.score||0),source:'beeldmatch fallback'};
-  }catch(e){return null}
+    return {
+      name:String(product.name).trim(),
+      set:String(product.set_abbr||product.set_code||product.set_name||'').trim().toUpperCase(),
+      cardno:String(product.number||product.collector_number||'').trim(),
+      setName:String(product.set_name||'').trim(),
+      confidence:Number(best.score||0),
+      source:`beeldmatch ${best.gameId===85?'Pokemon Japan':'Pokemon'}`
+    };
+  }catch(e){console.warn('Beeldherkenning mislukt',e);return null}
 }
 async function ocrFront(pair){
   const h=await readRecognitionHints(pair);
