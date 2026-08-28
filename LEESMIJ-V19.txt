@@ -1,0 +1,14 @@
+ZamexCards Fotobatchbewerker V19
+
+Fix op basis van de V18-test:
+- Foute herkenningen zoals Tail, Hands en Wing zijn geblokkeerd.
+- Oorzaak: namen als Scream Tail, Iron Hands en Slither Wing werden in de oude namenlijst op spaties gesplitst.
+- Meerdelige Pokémonnamen worden nu alleen als volledige naam geaccepteerd.
+- Losse beschrijvingswoorden worden niet meer als kaartnaam opgeslagen.
+- Als artwork-AI geen geldige Pokémonnaam vindt, gaat V19 verder met de bestaande Japanse database/artwork-fallback.
+- Engelse herkenning blijft behouden.
+- Bestandsnamen blijven nummer + kaartnaam.
+- Watermerkbreedte blijft standaard 28.
+
+GitHub Pages:
+Vervang alleen index.html door de versie uit deze ZIP.
