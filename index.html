@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Image Match V15</title>
+<title>ZamexCards Fotobatchbewerker – Naamherkenning V16</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -204,7 +204,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Image Match V15 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Naamherkenning V16 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -227,10 +227,10 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Image Match V15</strong>
+      <strong>Naamherkenning V16</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
-    <div id="api15status" class="ai8small">Open TCG API wordt getest…</div><div class="ai8small">
+    <div class="ai8small">
       Geen installatie en geen betaalde scan-API. Florence-2 draait rechtstreeks in Chrome.
       De eerste herkenning downloadt het AI-model éénmalig naar de browsercache.
     </div>
@@ -243,7 +243,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
-  <div id="status" class="status">Image Match V15 geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Naamherkenning V16 geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -989,12 +989,78 @@ function ai8ParseIdentity(raw){
   }
   return {setHint:set,cardno,rawBottom:s};
 }
+
+const V16_POKEMON_NAMES = new Set(`Abomasnow Abra Absol Accelgor Aegislash Aerodactyl Aggron Aipom Alakazam Alcremie Alomomola Altaria Amaura Ambipom Amoonguss Ampharos Annihilape Anorith Appletun Applin Araquanid Arbok Arboliva Arcanine Arceus Archaludon Archen Archeops Arctibax Arctovish Arctozolt Ariados Armaldo Armarouge Aromatisse Aron Arrokuda Articuno Audino Aurorus Avalugg Axew Azelf Azumarill Azurill Bagon Baltoy Banette Barbaracle Barboach Barraskewda Basculegion Basculin Bastiodon Baxcalibur Bayleef Beartic Beautifly Beedrill Beheeyem Beldum Bellibolt Bellossom Bellsprout Bergmite Bewear Bibarel Bidoof Binacle Bisharp Blacephalon Blastoise Blaziken Blipbug Blissey Blitzle Boldore Boltund Bombirdier Bonsly Bouffalant Bounsweet Braixen Brambleghast Bramblin Braviary Breloom Brionne Bronzong Bronzor Bruxish Budew Buizel Bulbasaur Buneary Bunnelby Burmy Butterfree Buzzwole Cacnea Cacturne Calyrex Camerupt Capsakid Carbink Carkol Carnivine Carracosta Carvanha Cascoon Castform Caterpie Celebi Celesteela Centiskorch Ceruledge Cetitan Cetoddle Chandelure Chansey Charcadet Charmander Charmeleon Charizard Chatot Cherrim Cherubi Chesnaught Chespin Chewtle Chien-Pao Chimchar Chimecho Chinchou Chingling Cinccino Cinderace Clamperl Clauncher Clawitzer Claydol Clefable Clefairy Cleffa Clobbopus Cloyster Coalossal Cobalion Cofagrigus Combee Combusken Comfey Conkeldurr Copperajah Corphish Corsola Corviknight Corvisquire Cosmoem Cosmog Cottonee Crabominable Crabrawler Cradily Cramorant Cranidos Crawdaunt Cresselia Croagunk Crobat Crocalor Croconaw Crustle Cryogonal Cubchoo Cubone Cufant Cursola Cutiefly Cyclizar Cyndaquil Dachsbun Darkrai Darmanitan Dartrix Darumaka Decidueye Dedenne Deerling Deino Delcatty Delibird Delphox Deoxys Dewgong Dewott Dewpider Dhelmise Dialga Diancie Diglett Dipplin Ditto Dodrio Doduo Dolliv Dondozo Donphan Dottler Doublade Dracovish Dracozolt Dragalge Dragapult Dragonair Dragonite Drakloak Drampa Drapion Dratini Drednaw Dreepy Drifblim Drifloon Drilbur Drizzile Drowzee Druddigon Dubwool Ducklett Dudunsparce Dugtrio Dunsparce Duosion Duraludon Durant Dusclops Dusknoir Duskull Dustox Dwebble Eelektrik Eelektross Eevee Eiscue Ekans Eldegoss Electabuzz Electivire Electrike Electrode Elekid Elgyem Emboar Emolga Empoleon Enamorus Entei Escavalier Espathra Espeon Espurr Eternatus Excadrill Exeggcute Exeggutor Exploud Falinks Farfetch'd Farigiraf Fearow Feebas Fennekin Feraligatr Ferroseed Ferrothorn Fezandipiti Fidough Finizen Finneon Flaaffy Flabebe Flamigo Flapple Flareon Fletchinder Fletchling Floatzel Floette Floragato Florges Flutter Mane Flygon Fomantis Foongus Forretress Fraxure Frigibax Frillish Froakie Frogadier Froslass Frosmoth Fuecoco Furret Gabite Gallade Galvantula Garbodor Garchomp Gardevoir Garganacl Gastly Gastrodon Genesect Gengar Geodude Gholdengo Gible Gigalith Girafarig Giratina Glaceon Glalie Glameow Glastrier Gligar Glimmet Glimmora Gloom Gogoat Golbat Goldeen Golduck Golem Golett Golisopod Golurk Goodra Goomy Gorebyss Gossifleur Gothita Gothitelle Gothorita Gouging Fire Gourgeist Grafaiai Granbull Grapploct Graveler Greavard Greedent Greninja Grimer Grimmsnarl Grookey Grotle Groudon Grovyle Growlithe Grubbin Grumpig Gulpin Gumshoos Gurdurr Guzzlord Gyarados Hakamo-o Happiny Hariyama Hatenna Hatterene Hattrem Haunter Hawlucha Haxorus Heatmor Heatran Heliolisk Helioptile Heracross Herdier Hippopotas Hippowdon Hitmonchan Hitmonlee Hitmontop Ho-Oh Honchkrow Honedge Hoopa Hoothoot Hoppip Horsea Houndoom Houndour Huntail Hydrapple Hydreigon Hypno Igglybuff Illumise Impidimp Incineroar Indeedee Infernape Inkay Inteleon Iron Boulder Iron Bundle Iron Crown Iron Hands Iron Jugulis Iron Leaves Iron Moth Iron Thorns Iron Treads Iron Valiant Ivysaur Jangmo-o Jellicent Jigglypuff Jirachi Jolteon Joltik Jumpluff Jynx Kabuto Kabutops Kadabra Kakuna Kangaskhan Karrablast Kartana Kecleon Keldeo Kilowattrel Kingambit Kingdra Kingler Kirlia Klang Klawf Kleavor Klefki Klink Klinklang Koffing Komala Kommo-o Koraidon Krabby Kricketot Kricketune Krokorok Krookodile Kubfu Kyogre Kyurem Lairon Lampent Landorus Lanturn Lapras Larvesta Larvitar Latias Latios Leafeon Leavanny Lechonk Ledian Ledyba Lickilicky Lickitung Liepard Lileep Lilligant Lillipup Linoone Litleo Litten Litwick Lokix Lombre Lopunny Lotad Loudred Lucario Ludicolo Lugia Lumineon Lunala Lunatone Lurantis Luvdisc Luxio Luxray Lycanroc Mabosstiff Machamp Machoke Machop Magby Magcargo Magearna Magikarp Magmar Magmortar Magnemite Magneton Magnezone Makuhita Malamar Mamoswine Manaphy Mandibuzz Mankey Mantine Mantyke Maractus Mareanie Mareep Marill Marowak Marshadow Marshtomp Maschiff Masquerain Maushold Mawile Medicham Meditite Meganium Melmetal Meloetta Meltan Meowscarada Meowstic Meowth Mesprit Metagross Metang Metapod Mew Mewtwo Mienfoo Mienshao Mightyena Milcery Milotic Miltank Mime Jr. Mimikyu Minccino Minior Minun Miraidon Misdreavus Mismagius Moltres Monferno Morelull Morgrem Morpeko Mothim Mr. Mime Mr. Rime Mudbray Mudkip Mudsdale Muk Munchlax Munna Murkrow Musharna Nacli Naclstack Naganadel Natu Necrozma Nickit Nidoking Nidoqueen Nidoran Nidorina Nidorino Nihilego Nincada Ninetales Ninjask Noctowl Noibat Noivern Nosepass Numel Nuzleaf Nymble Obstagoon Octillery Oddish Ogerpon Oinkologne Okidogi Omanyte Omastar Onix Oranguru Orbeetle Oricorio Orthworm Oshawott Overqwil Pachirisu Palkia Palossand Palpitoad Pancham Pangoro Panpour Pansage Pansear Paras Parasect Passimian Patrat Pawmi Pawmo Pawmot Pawniard Pecharunt Pelipper Perrserker Persian Petilil Phanpy Phantump Pheromosa Phione Pichu Pidgeot Pidgeotto Pidgey Pidove Pignite Pikachu Pikipek Piloswine Pineco Pinsir Piplup Plusle Poipole Politoed Poliwag Poliwhirl Poliwrath Poltchageist Polteageist Ponyta Poochyena Popplio Porygon Porygon-Z Porygon2 Primarina Primeape Prinplup Probopass Psyduck Pumpkaboo Pupitar Purrloin Purugly Pyroar Pyukumuku Quagsire Quaquaval Quaxly Quaxwell Quilava Quilladin Qwilfish Raboot Rabsca Raging Bolt Raichu Raikou Ralts Rampardos Rapidash Raticate Rattata Rayquaza Regice Regidrago Regieleki Regigigas Regirock Registeel Relicanth Rellor Remoraid Reshiram Reuniclus Revavroom Rhydon Rhyhorn Rhyperior Ribombee Rillaboom Riolu Roaring Moon Rockruff Roggenrola Rolycoly Rookidee Roselia Roserade Rotom Rowlet Rufflet Runerigus Sableye Salamence Salandit Salazzle Samurott Sandaconda Sandile Sandshrew Sandslash Sandy Shocks Sandygast Sawk Sawsbuck Scatterbug Sceptile Scizor Scolipede Scorbunny Scovillain Scrafty Scraggy Scream Tail Scyther Seadra Seaking Sealeo Seedot Seel Seismitoad Sentret Serperior Servine Seviper Sewaddle Sharpedo Shaymin Shedinja Shelgon Shellder Shellos Shelmet Shieldon Shiftry Shiinotic Shinx Shroodle Shroomish Shuckle Shuppet Sigilyph Silcoon Silicobra Silvally Simipour Simisage Simisear Sinistcha Sinistea Sirfetch'd Sizzlipede Skarmory Skeledirge Skiddo Skiploom Skitty Skorupi Skrelp Skuntank Skwovet Slaking Slakoth Sliggoo Slither Wing Slowbro Slowking Slowpoke Slugma Slurpuff Smeargle Smoliv Smoochum Sneasel Sneasler Snivy Snom Snorlax Snorunt Snover Snubbull Sobble Solgaleo Solosis Solrock Spearow Spectrier Spewpa Spheal Spidops Spinarak Spinda Spiritomb Spoink Sprigatito Squawkabilly Squirtle Stakataka Stantler Staraptor Staravia Starly Starmie Staryu Steelix Steenee Stonjourner Stoutland Stufful Stunfisk Stunky Sudowoodo Suicune Sunflora Sunkern Surskit Swablu Swadloon Swalot Swampert Swanna Swellow Swoobat Sylveon Tadbulb Taillow Talonflame Tandemaus Tangela Tangrowth Tapu Bulu Tapu Fini Tapu Koko Tapu Lele Tarountula Tatsugiri Tauros Teddiursa Tentacool Tentacruel Tepig Terapagos Terrakion Thievul Throh Thundurus Thwackey Timburr Ting-Lu Tinkatink Tinkaton Tinkatuff Tirtouga Toedscool Toedscruel Togedemaru Togekiss Togepi Togetic Torchic Torkoal Tornadus Torracat Torterra Totodile Toucannon Toxapex Toxel Toxicroak Toxtricity Tranquill Trapinch Treecko Trevenant Tropius Trubbish Trumbeak Tsareena Turtonator Turtwig Tympole Tynamo Type: Null Typhlosion Tyranitar Tyrantrum Tyrogue Tyrunt Umbreon Unfezant Unown Ursaluna Ursaring Urshifu Uxie Vanillish Vanillite Vanilluxe Vaporeon Varoom Veluza Venipede Venomoth Venonat Venusaur Vespiquen Vibrava Victini Victreebel Vigoroth Vikavolt Vileplume Virizion Vivillon Volbeat Volcanion Volcarona Voltorb Vullaby Vulpix Wailmer Wailord Walking Wake Walrein Wartortle Watchog Wattrel Weavile Weedle Weepinbell Weezing Whimsicott Whirlipede Whiscash Whismur Wigglytuff Wiglett Wimpod Wingull Wishiwashi Wo-Chien Woobat Wooloo Wooper Wormadam Wugtrio Wurmple Wynaut Wyrdeer Xatu Xerneas Xurkitree Yamask Yamper Yanma Yanmega Yungoos Yveltal Zacian Zamazenta Zangoose Zapdos Zarude Zebstrika Zekrom Zeraora Zigzagoon Zoroark Zorua Zubat Zweilous Zygarde`.split(/\s+/));
+
+function v16PokemonFromText(raw){
+  const s=String(raw||'').replace(/[’]/g,"'").toLowerCase();
+  // Longest names first prevents partial collisions.
+  const names=[...V16_POKEMON_NAMES].sort((a,b)=>b.length-a.length);
+  for(const n of names){
+    const x=n.toLowerCase();
+    if(s.includes(x))return n;
+  }
+  return '';
+}
+function v16CleanCardName(name){
+  let n=String(name||'').trim();
+  n=n.replace(/\s+/g,' ');
+  n=n.replace(/\b(?:pokemon|pokémon)\s+card\b/ig,'').trim();
+  return n;
+}
+async function v16DirectBrowserName(card){
+  const evidence=[];
+  try{
+    const ocr=ai8FlattenText(await window.ZamexBrowserAI.ocr(ai8CanvasData(card,.98)));
+    if(ocr)evidence.push(ocr);
+  }catch(e){}
+  try{
+    const desc=ai8FlattenText(await window.ZamexBrowserAI.detailed(ai8CanvasData(card,.98)));
+    if(desc)evidence.push(desc);
+  }catch(e){}
+  const all=evidence.join(' | ');
+  const poke=v16PokemonFromText(all);
+  if(poke){
+    // Preserve common card suffixes when Florence actually sees them.
+    let suffix='';
+    if(/\bvstar\b/i.test(all))suffix=' VSTAR';
+    else if(/\bvmax\b/i.test(all))suffix=' VMAX';
+    else if(/\bmega\b/i.test(all)&&/\bex\b/i.test(all))suffix=' ex';
+    else if(/\bex\b/i.test(all))suffix=' ex';
+    else if(/\bgx\b/i.test(all))suffix=' GX';
+    else if(/\b v\b/i.test(all))suffix=' V';
+    return {name:v16CleanCardName(poke+suffix), evidence:all};
+  }
+  // Trainer/item cards: OCR often gives the printed Latin/English title.
+  const lines=all.split(/[|\n]/).map(x=>x.trim()).filter(Boolean);
+  for(const line of lines){
+    const m=line.match(/\b(?:card (?:name|title)|name|title)\s*[:\-]\s*([A-Z][A-Za-z0-9'’ .&:-]{2,50})/i);
+    if(m)return {name:v16CleanCardName(m[1]),evidence:all};
+  }
+  return {name:'',evidence:all};
+}
+
 async function recognizeWithBrowserAI(pair){
   if(!window.ZamexBrowserAI) throw new Error('Browser AI module is nog niet geladen');
   const img=await loadImage(pair.front);
   const card=studioCardCropCanvas(img);
 
-  // V10: eerst uitsluitend het kleine set/nummergebied linksonder.
+  // V16: eerst alleen de kaartnaam uit de volledige kaart halen.
+  // Dit draait lokaal in de browser en is niet afhankelijk van TCGTracking.
+  try{
+    const direct=await v16DirectBrowserName(card);
+    if(direct?.name){
+      return {
+        name:direct.name,set:'',cardno:'',setName:'',
+        confidence:72,
+        source:'V16 lokale kaartnaamherkenning',
+        scanInfo:`Florence/browser-AI naam: ${direct.name} | ${String(direct.evidence||'').slice(0,260)}`,
+        cropSource:card.dataset.cropSource||'Browser AI crop'
+      };
+    }
+  }catch(e){}
+
+  // Daarna set/nummer/artwork als extra fallback.
   const ident=await ai10ReadBottomIdentity(card);
   const hints={
     name:'',
@@ -1010,9 +1076,9 @@ async function recognizeWithBrowserAI(pair){
     try{
       const exact=await lookupOpenTcgByIdentity(hints);
       if(exact?.name && exact?.cardno){
-        exact.source='V15 set/nummer OCR → exacte database';
+        exact.source='V16 set/nummer OCR → exacte database';
         exact.confidence=99;
-        exact.scanInfo=`V15 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
+        exact.scanInfo=`V16 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
         exact.cropSource=hints.cropSource;
         return exact;
       }
@@ -1039,9 +1105,9 @@ async function recognizeWithBrowserAI(pair){
       let e=await enrichTcgdexMatch(best,hints);
       if(!e)e=await v12MetadataFromDisplayedCandidate(best,hints);
       if(e){
-        e.source='V15 referentiekaart-match';
+        e.source='V16 referentiekaart-match';
         e.confidence=Math.max(55,Math.round(best.imageScore||0));
-        e.scanInfo=`V15 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | beste artworkmatch ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}% | automatisch overgenomen`;
+        e.scanInfo=`V16 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | beste artworkmatch ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}% | automatisch overgenomen`;
         e.cropSource=hints.cropSource;
         return e;
       }
@@ -1070,7 +1136,7 @@ async function recognizeWithBrowserAI(pair){
         let e=await enrichTcgdexMatch(best,h2);
         if(!e)e=await v12MetadataFromDisplayedCandidate(best,h2);
         if(e){
-          e.source='V15 visuele referentiekaart-match';
+          e.source='V16 visuele referentiekaart-match';
           e.confidence=Math.max(55,Math.round(best.imageScore||0));
           e.scanInfo=`Beschrijving: ${desc.slice(0,180)} | beste artworkmatch ${Math.round(best.imageScore||0)}% | automatisch overgenomen`;
           e.cropSource=hints.cropSource;
@@ -1091,19 +1157,8 @@ async function recognizeHybrid(pair){
   window.__lastScanInfo='';
   window.__identityLookupInfo='';
 
-  // V14 route 1: echte kaart-afbeeldingsmatch.
-  // Dit gebruikt de volledige uitgesneden kaart en levert direct een product/card-ID op.
-  try{
-    const vision=await recognizeByImage(pair,{});
-    if(vision?.name){
-      vision.ocrName=''; vision.ocrCardno=''; vision.ocrSet=''; vision.rawBottom='';
-      return vision;
-    }
-  }catch(e){
-    window.__lastScanInfo='Directe beeldmatch fout: '+(e?.message||String(e));
-  }
-
-  // Route 2: Florence-2 in Chrome als fallback.
+  // V16 route 1: Florence-2 draait lokaal in Chrome/Edge.
+  // Geen externe scan-API nodig om eerst een kaartnaam te krijgen.
   try{
     const ai=await recognizeWithBrowserAI(pair);
     if(ai?.name){
@@ -1112,7 +1167,7 @@ async function recognizeHybrid(pair){
     }
   }catch(e){
     window.__lastScanInfo='Browser AI: '+(e?.message||String(e));
-    console.warn('V14 Browser AI',e);
+    console.warn('V16 Browser AI',e);
   }
 
   // Route 2: existing targeted OCR/database fallback, so V8 still works
@@ -1271,7 +1326,7 @@ async function recognizeByImage(pair,hints={}){
         return {
           name,set:setCode,cardno,setName,
           confidence:Math.max(50,Math.round(s)),
-          source:'V15 directe beeldmatch',
+          source:'V16 directe beeldmatch',
           scanInfo:window.__lastScanInfo,
           cropSource:card.dataset.cropSource||''
         };
@@ -1347,7 +1402,7 @@ $('recognize').onclick=async()=>{
        const pv=card?.querySelector('.recog-preview');
        if(pv)pv.src=rc.toDataURL('image/jpeg',.88);
        const dg=card?.querySelector('.diag');
-       if(dg)dg.textContent=`V15 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
+       if(dg)dg.textContent=`V16 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
      }catch(e){}
 
      // Geef de browser één frame om bovenstaande zichtbaar te maken.
@@ -1364,7 +1419,7 @@ $('recognize').onclick=async()=>{
        const dbg=card.querySelector('.diag');
        const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
        if(dbg){
-         dbg.textContent=`V15 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
+         dbg.textContent=`V16 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
        }
 
        card.classList.remove('recognizing');
@@ -1375,7 +1430,7 @@ $('recognize').onclick=async()=>{
          card.title=`${r.source||'Herkenning'}${r.confidence?' '+Math.round(r.confidence)+'%':''}${r.setName?' – '+r.setName:''}`;
        }else{
          card.classList.add('not-recognized');
-         if(st){st.className='recog-state warn';st.textContent='Geen naam uit directe beeldmatch; fallback gebruikt.';}
+         if(st){st.className='recog-state warn';st.textContent='Lokale kaartnaamherkenning kon geen naam bepalen; fallback gebruikt.';}
        }
      }
 
@@ -1637,20 +1692,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 
 
-async function v15TestOpenTcgApi(){
-  const el=document.getElementById('api15status');
-  if(!el)return;
-  try{
-    const r=await fetch('https://tcgtracking.com/tcgapi/v1/categories',{mode:'cors',cache:'no-store'});
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const j=await r.json();
-    const ok=Array.isArray(j)||Array.isArray(j?.categories)||Array.isArray(j?.data);
-    el.textContent=ok?'Open TCG API: online en bereikbaar vanuit GitHub Pages.':'Open TCG API: antwoord ontvangen.';
-  }catch(e){
-    el.textContent='Open TCG API: niet bereikbaar vanuit deze browser ('+(e?.message||e)+').';
-  }
-}
-document.addEventListener('DOMContentLoaded',()=>setTimeout(v15TestOpenTcgApi,500));
+
 
 </script>
 

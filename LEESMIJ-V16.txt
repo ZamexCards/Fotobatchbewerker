@@ -1,0 +1,17 @@
+ZamexCards Fotobatchbewerker V16
+
+Belangrijkste wijziging:
+- TCGTracking/Failed to fetch is niet meer de hoofdroute.
+- Florence-2 draait lokaal in Chrome/Edge.
+- De volledige kaart wordt eerst gebruikt om ALLEEN de kaartnaam te bepalen.
+- Zodra een naam is gevonden, wordt die direct opgeslagen in pair.name.
+- ZIP en mapnaam gebruiken daarna alleen:
+  001 Kaartnaam
+  001 Kaartnaam - Voorkant
+  001 Kaartnaam - Achterkant
+
+Set en kaartnummer zijn alleen nog fallback/hulp voor herkenning.
+Watermerkbreedte standaard 28.
+
+GitHub:
+Vervang alleen index.html.
