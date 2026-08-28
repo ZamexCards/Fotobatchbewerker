@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Browser AI Matcher V9</title>
+<title>ZamexCards Fotobatchbewerker – Browser AI Matcher V10</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -204,8 +204,8 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Browser AI V9 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
-      <div class="help">V9 scheidt herkenning en export strikt. De ZIP-knop blijft geblokkeerd tot alle kaarten volledig zijn uitgesneden, herkend, gecontroleerd en op het scherm bijgewerkt.</div>
+      <select id="ocrMode"><option value="hybrid" selected>Browser AI V10 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
   <div class="row two" style="margin-top:14px">
@@ -227,7 +227,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Browser AI V9</strong>
+      <strong>Browser AI V10</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -243,7 +243,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
-  <div id="status" class="status">Browser AI Matcher V9 geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Browser AI Matcher V10 geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -284,12 +284,21 @@ $('prepare').onclick=async()=>{
    const div=document.createElement('div');div.className='card';div.dataset.index=pairs.length-1;
    div.innerHTML=`<div><span class="tag">${formatNum(p.num)}</span><span class="tag">Voor + Achter</span></div>
    <div class="thumbs" style="margin-top:8px"><div class="thumb"><img src="${frontURL}"></div><div class="thumb">${backURL?`<img src="${backURL}">`:'ONTBREEKT'}</div></div>
-   <div class="meta"><div class="wide"><label>Pokémon / kaartnaam</label><input class="name" type="text" placeholder="Mega Greninja ex"></div><div><label>Set</label><input class="set" type="text" placeholder="CRI"></div><div><label>Kaartnummer</label><input class="cardno" type="text" placeholder="122"></div></div>
+   <div class="meta"><div class="wide"><label>Pokémon / kaartnaam</label><input class="name" type="text" placeholder="wordt automatisch ingevuld"></div><div><label>Set</label><input class="set" type="text" placeholder="set"></div><div><label>Kaartnummer</label><input class="cardno" type="text" placeholder="nummer"></div></div>
    <div class="recog-debug"><img class="recog-preview" alt="Herkenningsuitsnede"><div><div class="recog-state warn">Nog niet gestart.</div><div class="diag">Nog niet herkend.</div></div></div>`;
    wrap.appendChild(div);
  }
 }
-function syncInputs(){document.querySelectorAll('.card').forEach(card=>{const p=pairs[+card.dataset.index];p.name=card.querySelector('.name').value.trim();p.set=card.querySelector('.set').value.trim().toUpperCase();p.cardno=card.querySelector('.cardno').value.trim()})}
+function syncInputs(){document.querySelectorAll('.card').forEach(card=>{
+      const p=pairs[+card.dataset.index];
+      const n=card.querySelector('.name').value.trim();
+      const s=card.querySelector('.set').value.trim().toUpperCase();
+      const no=card.querySelector('.cardno').value.trim();
+      // Handmatige invoer heeft voorrang; anders blijft het succesvolle herkenningsresultaat behouden.
+      p.name=n || p.recognized?.name || '';
+      p.set=s || p.recognized?.set || '';
+      p.cardno=no || p.recognized?.cardno || '';
+    })}
 async function ocrCanvas(canvas, psm='7', whitelist=''){
   const opts={
     logger:m=>{if(m.status==='recognizing text')$('bar').style.width=(m.progress*100)+'%'},
@@ -818,6 +827,77 @@ function ai8FlattenText(v){
   }
   return String(v);
 }
+
+function ai10ContrastCanvas(src,outW=2200,threshold=false){
+  const out=document.createElement('canvas');
+  out.width=outW;
+  out.height=Math.max(1,Math.round(src.height*outW/src.width));
+  const c=out.getContext('2d',{willReadFrequently:true});
+  c.drawImage(src,0,0,out.width,out.height);
+  const im=c.getImageData(0,0,out.width,out.height);
+  const d=im.data;
+  for(let i=0;i<d.length;i+=4){
+    let g=.2126*d[i]+.7152*d[i+1]+.0722*d[i+2];
+    g=(g-128)*1.8+128;
+    if(threshold) g=g>150?255:0;
+    g=Math.max(0,Math.min(255,g));
+    d[i]=d[i+1]=d[i+2]=g;
+  }
+  c.putImageData(im,0,0);
+  return out;
+}
+function ai10IdentityScore(x){
+  let s=0;
+  if(x?.setHint)s+=3;
+  if(x?.cardno)s+=4;
+  if(x?.rawBottom?.match(/\d{1,3}\s*\/\s*\d{2,3}/))s+=3;
+  if(x?.setHint?.match(/^(SV|S|SM|XY|SWSH|MEP|TEF|TWM|SCR|SSP|PRE|DRI|MEG|MEE|BLK|WHT)/i))s+=2;
+  return s;
+}
+async function ai10ReadBottomIdentity(card){
+  // Pokemon TCG setcode/collector number is almost always in the lower-left strip.
+  // We deliberately make several slightly different crops because Japanese/English
+  // layouts differ and foil cards can make one crop hard to read.
+  const specs=[
+    [0.00,.84,.52,.16,2200],
+    [0.00,.88,.48,.12,2400],
+    [0.00,.91,.43,.09,2600],
+    [0.00,.80,.60,.20,2200]
+  ];
+  const readings=[];
+  for(const [x,y,w,h,outW] of specs){
+    const crop=ai8Crop(card,
+      Math.round(card.width*x),Math.round(card.height*y),
+      Math.round(card.width*w),Math.round(card.height*h),outW);
+    const variants=[crop,ai10ContrastCanvas(crop,outW,false),ai10ContrastCanvas(crop,outW,true)];
+    for(const v of variants){
+      try{
+        const raw=ai8FlattenText(await window.ZamexBrowserAI.ocr(ai8CanvasData(v,.98)));
+        if(raw) readings.push(raw);
+      }catch(e){}
+    }
+  }
+  // Browser AI first. Tesseract gets one high-contrast pass as a second opinion.
+  try{
+    const c=ai8Crop(card,0,Math.round(card.height*.86),
+      Math.round(card.width*.55),Math.round(card.height*.14),2400);
+    const hc=ai10ContrastCanvas(c,2400,false);
+    const td=await ocrCanvas(hc,'6','ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/- ');
+    if(td?.text)readings.push(td.text);
+  }catch(e){}
+
+  let best={setHint:'',cardno:'',rawBottom:''}, bestScore=-1;
+  for(const raw of readings){
+    const p=ai8ParseIdentity(raw);
+    const score=ai10IdentityScore(p);
+    if(score>bestScore){best={...p,rawBottom:raw};bestScore=score;}
+  }
+  // Also combine all readings; separate runs often catch complementary pieces.
+  const combined=ai8ParseIdentity(readings.join(' | '));
+  if(ai10IdentityScore(combined)>bestScore)best={...combined,rawBottom:readings.join(' | ')};
+  best.allReadings=readings;
+  return best;
+}
 function ai8ParseIdentity(raw){
   const s=String(raw||'').replace(/\s+/g,' ').trim();
 
@@ -851,56 +931,86 @@ async function recognizeWithBrowserAI(pair){
   const img=await loadImage(pair.front);
   const card=studioCardCropCanvas(img);
 
-  // Florence sees a high-resolution lower strip for the printed set/collector number.
-  const bottom=ai8Crop(card,0,Math.round(card.height*.72),card.width,Math.round(card.height*.28),1700);
-  const top=ai8Crop(card,0,0,card.width,Math.round(card.height*.22),1500);
-
-  const bottomOCR=ai8FlattenText(await window.ZamexBrowserAI.ocr(ai8CanvasData(bottom,.97)));
-  const topOCR=ai8FlattenText(await window.ZamexBrowserAI.ocr(ai8CanvasData(top,.96)));
-  const fullOCR=ai8FlattenText(await window.ZamexBrowserAI.ocr(ai8CanvasData(card,.95)));
-
-  let ident=ai8ParseIdentity(bottomOCR+' '+fullOCR);
-  let hints={
+  // V10: eerst uitsluitend het kleine set/nummergebied linksonder.
+  const ident=await ai10ReadBottomIdentity(card);
+  const hints={
     name:'',
     setHint:ident.setHint||'',
     cardno:ident.cardno||'',
-    rawBottom:bottomOCR,
+    rawBottom:ident.rawBottom||'',
     cardCanvas:card,
     cropSource:card.dataset.cropSource||'Browser AI crop'
   };
 
-  // Most reliable route: set code + collector number -> exact database card.
+  // 1) Exacte set+nummer lookup is beslissend.
   if(hints.setHint && hints.cardno){
     try{
       const exact=await lookupOpenTcgByIdentity(hints);
       if(exact?.name && exact?.cardno){
-        exact.source='Florence-2 OCR → set/nummer database';
+        exact.source='V10 set/nummer OCR → exacte database';
         exact.confidence=99;
-        exact.scanInfo=`Browser AI las: ${hints.setHint} ${hints.cardno} | onderkant: ${bottomOCR.slice(0,240)}`;
+        exact.scanInfo=`V10 las linksonder: ${hints.setHint} ${hints.cardno} | OCR: ${(ident.rawBottom||'').slice(0,260)}`;
         exact.cropSource=hints.cropSource;
         return exact;
       }
     }catch(e){}
   }
 
-  // TCGdex candidate route: use number first, OCR name only as secondary hint.
-  hints.name=(topOCR.match(/[A-Za-z][A-Za-z .'-]{2,30}/)||[])[0]||'';
+  // 2) Kandidaten op kaartnummer en/of set, daarna artwork.
+  let candidates=[];
+  try{ candidates=await tcgdexCandidates(hints); }catch(e){}
+  if(candidates.length){
+    const scored=[];
+    for(let i=0;i<candidates.length;i+=8){
+      const part=await Promise.all(candidates.slice(i,i+8).map(c=>scoreCandidate(c,hints,card)));
+      scored.push(...part.filter(x=>x.total>=0));
+    }
+    scored.sort((a,b)=>b.total-a.total);
+    const best=scored[0], second=scored[1];
+    const margin=best&&second ? best.imageScore-second.imageScore : 99;
+
+    // V10 accepteert een nummermatch met redelijke artworkmatch,
+    // of een zeer sterke unieke artworkmatch.
+    if(best && (
+      (best.numberScore===100 && best.imageScore>=28) ||
+      (best.imageScore>=72 && margin>=7)
+    )){
+      const e=await enrichTcgdexMatch(best,hints);
+      if(e){
+        e.source='V10 nummer + artworkcontrole';
+        e.confidence=Math.max(90,Math.round(best.imageScore||0));
+        e.scanInfo=`V10 OCR: ${hints.setHint||'-'} ${hints.cardno||'-'} | artwork ${Math.round(best.imageScore||0)}% | marge ${Math.round(margin)}%`;
+        e.cropSource=hints.cropSource;
+        return e;
+      }
+    }
+  }
+
+  // 3) Alleen wanneer set/nummer nog niet lukte: volledige kaart beschrijven.
+  // Dit is slechts een extra naamhint, nooit genoeg om zonder artworkcontrole te accepteren.
   try{
-    const candidates=await tcgdexCandidates(hints);
-    if(candidates.length){
+    const desc=ai8FlattenText(await window.ZamexBrowserAI.detailed(ai8CanvasData(card,.95)));
+    const words=desc.match(/\b[A-Z][A-Za-z' -]{2,24}\b/g)||[];
+    for(const w of words.slice(0,10)){
+      const h2={...hints,name:w.trim()};
+      let cands=[];
+      try{cands=await tcgdexCandidates(h2)}catch(e){}
+      if(!cands.length)continue;
       const scored=[];
-      for(let i=0;i<candidates.length;i+=8){
-        const part=await Promise.all(candidates.slice(i,i+8).map(c=>scoreCandidate(c,hints,card)));
+      for(let i=0;i<Math.min(cands.length,60);i+=8){
+        const part=await Promise.all(cands.slice(i,i+8).map(c=>scoreCandidate(c,h2,card)));
         scored.push(...part.filter(x=>x.total>=0));
       }
-      scored.sort((a,b)=>b.total-a.total);
-      const best=scored[0];
-      if(best && (best.imageScore>=48 || (best.numberScore===100&&best.imageScore>=30))){
-        const e=await enrichTcgdexMatch(best,hints);
+      scored.sort((x,y)=>y.total-x.total);
+      const best=scored[0], second=scored[1];
+      const margin=best&&second?best.imageScore-second.imageScore:99;
+      if(best && best.imageScore>=76 && margin>=8){
+        const e=await enrichTcgdexMatch(best,h2);
         if(e){
-          e.source='Florence-2 OCR + artworkvergelijking';
-          e.confidence=Math.max(90,Math.round(best.imageScore||0));
-          e.scanInfo=`Browser AI: ${hints.setHint||'-'} ${hints.cardno||'-'} | artwork ${Math.round(best.imageScore||0)}%`;
+          e.source='V10 visuele naam + artworkcontrole';
+          e.confidence=Math.round(best.imageScore);
+          e.scanInfo=`Beschrijving: ${desc.slice(0,180)} | artwork ${Math.round(best.imageScore)}%`;
+          e.cropSource=hints.cropSource;
           return e;
         }
       }
@@ -914,7 +1024,7 @@ async function recognizeHybrid(pair){
   window.__lastScanInfo='';
   window.__identityLookupInfo='';
 
-  // V8 route 1: Florence-2 entirely inside Chrome/Edge via WebGPU.
+  // V10 route 1: Florence-2 entirely inside Chrome/Edge via WebGPU.
   try{
     const ai=await recognizeWithBrowserAI(pair);
     if(ai?.name && ai?.cardno){
@@ -923,7 +1033,7 @@ async function recognizeHybrid(pair){
     }
   }catch(e){
     window.__lastScanInfo='Browser AI: '+(e?.message||String(e));
-    console.warn('V8 Browser AI',e);
+    console.warn('V10 Browser AI',e);
   }
 
   // Route 2: existing targeted OCR/database fallback, so V8 still works
@@ -1149,7 +1259,7 @@ $('recognize').onclick=async()=>{
        const pv=card?.querySelector('.recog-preview');
        if(pv)pv.src=rc.toDataURL('image/jpeg',.88);
        const dg=card?.querySelector('.diag');
-       if(dg)dg.textContent=`V9 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
+       if(dg)dg.textContent=`V10 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
      }catch(e){}
 
      // Geef de browser één frame om bovenstaande zichtbaar te maken.
@@ -1158,7 +1268,7 @@ $('recognize').onclick=async()=>{
      const r=await recognizeCard(p,mode);
 
      // Resultaat pas na VOLLEDIGE await naar de kaart schrijven.
-     Object.assign(p,r||{});
+     Object.assign(p,r||{}); if(r?.name&&r?.cardno)p.recognized={name:r.name,set:r.set||'',cardno:r.cardno};
      if(card){
        card.querySelector('.name').value=p.name||'';
        card.querySelector('.set').value=p.set||'';
@@ -1166,7 +1276,7 @@ $('recognize').onclick=async()=>{
        const dbg=card.querySelector('.diag');
        const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
        if(dbg){
-         dbg.textContent=`V9 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
+         dbg.textContent=`V10 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
        }
 
        card.classList.remove('recognizing');

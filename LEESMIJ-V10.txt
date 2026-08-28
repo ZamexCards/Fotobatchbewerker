@@ -1,0 +1,14 @@
+ZamexCards Fotobatchbewerker V10
+
+Waarom deze versie:
+- V9 heeft bewezen dat herkenning eerst volledig moet afronden vóór ZIP-export.
+- De grijze teksten Mega Greninja / CRI / 122 waren alleen placeholders, geen echte matches.
+- V10 verwijdert die misleidende placeholders.
+- V10 leest setcode + kaartnummer uit meerdere ZEER sterk vergrote vakken linksonder.
+- Browser AI + een extra Tesseract-pass worden gecombineerd.
+- Exacte set+nummer-match heeft voorrang.
+- Daarna wordt artwork gebruikt als controle.
+- Een succesvol herkenningsresultaat wordt apart bewaard en kan bij ZIP-export niet meer verdwijnen.
+
+GitHub:
+Upload index.html en vervang de bestaande index.html.
