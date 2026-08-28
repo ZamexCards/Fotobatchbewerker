@@ -1,0 +1,22 @@
+ZamexCards Fotobatchbewerker V9 TEST
+
+DOEL VAN DEZE TEST
+Deze versie test precies de timing/volgorde die op de screenshots verdacht was.
+
+AANGEPAST
+- ZIP-knop is bij het openen geblokkeerd.
+- Klik eerst 'Foto's koppelen'.
+- Klik daarna 'Kaarten automatisch herkennen'.
+- Oude/voorbeeldvelden worden eerst volledig leeggemaakt.
+- Per kaart verschijnt de herkenningsuitsnede DIRECT.
+- V9 wacht daarna volledig op AI + databasecontrole.
+- Pas wanneer ALLE kaarten klaar zijn wordt ZIP-export vrijgegeven.
+- De ZIP-stap voert GEEN herkenning meer uit.
+- Elke kaart toont nu duidelijk:
+  'Herkenning bezig'
+  'Herkenning volledig afgerond'
+  of
+  'Geen betrouwbare match'
+
+GITHUB
+Upload alleen index.html uit deze ZIP en vervang je huidige index.html.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Browser AI Matcher V8</title>
+<title>ZamexCards Fotobatchbewerker – Browser AI Matcher V9</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -128,6 +128,16 @@ h2{color:#fff;font-size:28px}
 .ai8dot.bad{background:#e84e4e}
 .ai8small{font-size:13px;color:#cfe1ee;margin-top:6px}
 
+
+.card.recognizing{outline:2px solid #37b9ff;box-shadow:0 0 0 5px rgba(55,185,255,.08)}
+.card.recognized{outline:2px solid #43d56c}
+.card.not-recognized{outline:2px solid #f0ad2f}
+.recog-state{font-size:12px;font-weight:900;margin-top:8px}
+.recog-state.busy{color:#63cfff}
+.recog-state.ok{color:#59df72}
+.recog-state.warn{color:#ffc04a}
+button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
+
 </style>
 </head>
 <body>
@@ -194,8 +204,8 @@ h2{color:#fff;font-size:28px}
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Browser AI V8 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
-      <div class="help">V8 draait Florence-2 rechtstreeks in Chrome via WebGPU. Hij leest vooral de setcode en het kaartnummer onderaan, controleert die tegen de kaartdatabase en gebruikt artwork als extra controle.</div>
+      <select id="ocrMode"><option value="hybrid" selected>Browser AI V9 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <div class="help">V9 scheidt herkenning en export strikt. De ZIP-knop blijft geblokkeerd tot alle kaarten volledig zijn uitgesneden, herkend, gecontroleerd en op het scherm bijgewerkt.</div>
     </div>
   </div>
   <div class="row two" style="margin-top:14px">
@@ -217,7 +227,7 @@ h2{color:#fff;font-size:28px}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Browser AI V8</strong>
+      <strong>Browser AI V9</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -233,7 +243,7 @@ h2{color:#fff;font-size:28px}
     <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
-  <div id="status" class="status">Browser AI Matcher V8 geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Browser AI Matcher V9 geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -246,7 +256,7 @@ h2{color:#fff;font-size:28px}
 <canvas id="canvas" width="1500" height="1500"></canvas>
 <script>
 const $=id=>document.getElementById(id);
-let pairs=[]; let watermarkImg=null;
+let pairs=[]; let watermarkImg=null; let recognitionBusy=false; let recognitionCompleted=false;
 function sequenceNumber(startValue, offset){
  const raw=String(startValue??'1').trim()||'1';
  const m=raw.match(/^(.*?)(\d+)$/);
@@ -264,6 +274,7 @@ function loadImage(file){return new Promise((resolve,reject)=>{const img=new Ima
 function dataURL(file){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file)})}
 $('watermark').addEventListener('change',async e=>{if(e.target.files[0]){watermarkImg=await loadImage(e.target.files[0]);setStatus('Watermerk geladen.','ok')}})
 $('prepare').onclick=async()=>{
+ recognitionBusy=false; recognitionCompleted=false; $('download').disabled=true;
  const files=[...$('photos').files]; if(!files.length){setStatus('Selecteer eerst foto\'s.','warn');return}
  if(files.length%2!==0)setStatus(`Let op: ${files.length} foto\'s geladen. De laatste foto heeft geen partner.`,'warn'); else setStatus(`${files.length} foto\'s geladen = ${files.length/2} kaarten.`,'ok');
  pairs=[]; const start=$('startNo').value||'1'; const wrap=$('cards'); wrap.innerHTML='';
@@ -274,7 +285,7 @@ $('prepare').onclick=async()=>{
    div.innerHTML=`<div><span class="tag">${formatNum(p.num)}</span><span class="tag">Voor + Achter</span></div>
    <div class="thumbs" style="margin-top:8px"><div class="thumb"><img src="${frontURL}"></div><div class="thumb">${backURL?`<img src="${backURL}">`:'ONTBREEKT'}</div></div>
    <div class="meta"><div class="wide"><label>Pokémon / kaartnaam</label><input class="name" type="text" placeholder="Mega Greninja ex"></div><div><label>Set</label><input class="set" type="text" placeholder="CRI"></div><div><label>Kaartnummer</label><input class="cardno" type="text" placeholder="122"></div></div>
-   <div class="recog-debug"><img class="recog-preview" alt="Herkenningsuitsnede"><div class="diag">Nog niet herkend.</div></div>`;
+   <div class="recog-debug"><img class="recog-preview" alt="Herkenningsuitsnede"><div><div class="recog-state warn">Nog niet gestart.</div><div class="diag">Nog niet herkend.</div></div></div>`;
    wrap.appendChild(div);
  }
 }
@@ -1084,34 +1095,117 @@ async function recognizeCard(pair,mode){
   return await ocrFront(pair);
 }
 $('recognize').onclick=async()=>{
+ if(recognitionBusy)return;
  if(!pairs.length){await $('prepare').onclick(); if(!pairs.length)return}
  const mode=$('ocrMode').value;
  if(mode==='off'){setStatus('Automatische herkenning staat uit.','warn');return}
- let found=0;
- for(let i=0;i<pairs.length;i++){
-   setStatus(`Kaart ${i+1} van ${pairs.length} wordt herkend via ${mode==='hybrid'?'naam + nummer + afbeelding':'OCR'}...`);
-   const r=await recognizeCard(pairs[i],mode);
-   Object.assign(pairs[i],r);
+
+ recognitionBusy=true;
+ recognitionCompleted=false;
+ $('recognize').disabled=true;
+ $('download').disabled=true;
+ $('prepare').disabled=true;
+ const oldRecognizeText=$('recognize').textContent;
+ $('recognize').textContent='Herkenning bezig…';
+ $('bar').style.width='0%';
+
+ // Heel belangrijk in V9: oude/voorbeeldgegevens verdwijnen voordat een nieuwe run begint.
+ pairs.forEach((p,i)=>{
+   p.name=''; p.set=''; p.cardno='';
    const card=document.querySelector(`.card[data-index="${i}"]`);
-   card.querySelector('.name').value=pairs[i].name||'';
-   card.querySelector('.set').value=pairs[i].set||'';
-   card.querySelector('.cardno').value=pairs[i].cardno||'';
-   const dbg=card.querySelector('.recog-debug');
-   try{
-     const im=await loadImage(pairs[i].front);
-     const rc=await recognitionCardCanvas(im);
-     card.querySelector('.recog-preview').src=rc.toDataURL('image/jpeg',.78);
-     const cropInfo=rc.dataset.cropSource||'onbekend';
-     const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
-     dbg.querySelector('.diag').textContent=`V8 | Crop: ${cropInfo} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
-   }catch(e){dbg.querySelector('.diag').textContent='Diagnose kon niet worden gemaakt.'}
-   if(r?.name && r?.cardno){found++; card.title=`${r.source||'Herkenning'}${r.confidence?' '+Math.round(r.confidence)+'%':''}${r.setName?' – '+r.setName:''}`;}
-   $('bar').style.width=((i+1)/pairs.length*100)+'%';
+   if(!card)return;
+   card.classList.remove('recognized','not-recognized');
+   card.classList.add('recognizing');
+   card.querySelector('.name').value='';
+   card.querySelector('.set').value='';
+   card.querySelector('.cardno').value='';
+   const st=card.querySelector('.recog-state');
+   if(st){st.className='recog-state busy';st.textContent='Wachten op herkenning…'}
+   const dg=card.querySelector('.diag');
+   if(dg)dg.textContent='Herkenning wordt voorbereid…';
+   const pv=card.querySelector('.recog-preview');
+   if(pv)pv.removeAttribute('src');
+ });
+
+ try{
+   // Laat het browser-AI model eerst volledig klaar komen voordat kaart 1 start.
+   if(mode==='hybrid' && window.ZamexBrowserAI?.ensure){
+     setStatus('Browser AI wordt geladen. De herkenning start zodra het model volledig klaar is…');
+     await window.ZamexBrowserAI.ensure();
+   }
+
+   let found=0;
+   for(let i=0;i<pairs.length;i++){
+     const p=pairs[i];
+     const card=document.querySelector(`.card[data-index="${i}"]`);
+     const st=card?.querySelector('.recog-state');
+     setStatus(`Kaart ${i+1} van ${pairs.length}: uitsnijden, herkennen en databasecontrole afronden…`);
+     if(st){st.className='recog-state busy';st.textContent=`Kaart ${i+1}: herkenning bezig…`;}
+
+     // Toon de ECHTE herkenningsuitsnede meteen, vóór AI/database.
+     try{
+       const im=await loadImage(p.front);
+       const rc=await recognitionCardCanvas(im);
+       const pv=card?.querySelector('.recog-preview');
+       if(pv)pv.src=rc.toDataURL('image/jpeg',.88);
+       const dg=card?.querySelector('.diag');
+       if(dg)dg.textContent=`V9 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
+     }catch(e){}
+
+     // Geef de browser één frame om bovenstaande zichtbaar te maken.
+     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+
+     const r=await recognizeCard(p,mode);
+
+     // Resultaat pas na VOLLEDIGE await naar de kaart schrijven.
+     Object.assign(p,r||{});
+     if(card){
+       card.querySelector('.name').value=p.name||'';
+       card.querySelector('.set').value=p.set||'';
+       card.querySelector('.cardno').value=p.cardno||'';
+       const dbg=card.querySelector('.diag');
+       const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
+       if(dbg){
+         dbg.textContent=`V9 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
+       }
+
+       card.classList.remove('recognizing');
+       if(r?.name && r?.cardno){
+         found++;
+         card.classList.add('recognized');
+         if(st){st.className='recog-state ok';st.textContent='Herkenning volledig afgerond.';}
+         card.title=`${r.source||'Herkenning'}${r.confidence?' '+Math.round(r.confidence)+'%':''}${r.setName?' – '+r.setName:''}`;
+       }else{
+         card.classList.add('not-recognized');
+         if(st){st.className='recog-state warn';st.textContent='Geen betrouwbare match – velden blijven leeg.';}
+       }
+     }
+
+     $('bar').style.width=((i+1)/pairs.length*100)+'%';
+     await new Promise(resolve=>requestAnimationFrame(resolve));
+   }
+
+   recognitionCompleted=true;
+   $('download').disabled=false;
+
+   if(found===pairs.length){
+     setStatus(`Herkenning volledig klaar: alle ${found} kaarten zijn afgerond. ZIP-export is nu vrijgegeven.`, 'ok');
+   }else if(found){
+     setStatus(`Herkenning volledig klaar: ${found} van ${pairs.length} kaarten herkend. ZIP-export is nu vrijgegeven.`, 'warn');
+   }else{
+     setStatus('Herkenning volledig afgerond, maar er is geen betrouwbare kaartmatch gevonden. De ZIP-knop is nu pas vrijgegeven.', 'warn');
+   }
+ }catch(e){
+   setStatus('Herkenning gestopt door fout: '+(e?.message||String(e)),'warn');
+   console.error(e);
+ }finally{
+   recognitionBusy=false;
+   $('recognize').disabled=false;
+   $('prepare').disabled=false;
+   $('recognize').textContent=oldRecognizeText;
  }
- if(found===pairs.length)setStatus(`Klaar: alle ${found} kaarten zijn herkend. Controleer de gegevens vóór export.`, 'ok');
- else if(found)setStatus(`Klaar: ${found} van ${pairs.length} kaarten zijn herkend. Niet-herkende kaarten blijven leeg zodat er geen verkeerde naam in de ZIP komt.`, 'warn');
- else setStatus('Er is geen betrouwbare kaartmatch gevonden. V8 gebruikt Florence-2 AI rechtstreeks in Chrome via WebGPU, daarna set/nummer-databasecontrole en pas als laatste OCR-fallback.', 'warn');
 }
+
 function safeName(s){return (s||'').replace(/[<>:"/\\|?*]+/g,'').replace(/\s+/g,' ').trim()}
 
 async function detectCardCrop(img){
@@ -1254,7 +1348,10 @@ async function render(file, kind='front'){
  return new Promise(r=>c.toBlob(r,fmt==='jpg'?'image/jpeg':'image/png',0.98));
 }
 $('download').onclick=async()=>{
- if(!pairs.length){await $('prepare').onclick();if(!pairs.length)return} syncInputs(); if(!watermarkImg && $('watermark').files[0]) watermarkImg=await loadImage($('watermark').files[0]);
+ if(recognitionBusy){setStatus('Wacht tot de kaart-herkenning volledig klaar is.','warn');return}
+ if(!pairs.length){setStatus('Koppel eerst de foto\'s.','warn');return}
+ if(!recognitionCompleted){setStatus('Klik eerst op “Kaarten automatisch herkennen”. De ZIP-export start pas als die stap volledig klaar is.','warn');return}
+ syncInputs(); if(!watermarkImg && $('watermark').files[0]) watermarkImg=await loadImage($('watermark').files[0]);
  const zip=new JSZip(); setStatus('Afbeeldingen worden verwerkt...'); $('bar').style.width='0%'; let done=0,total=pairs.reduce((a,p)=>a+(p.back?2:1),0);
  const zipLayout=$('zipLayout')?.value||'flat';
  for(const p of pairs){
@@ -1330,6 +1427,13 @@ window.ZamexBrowserAI={
 };
 if(navigator.gpu) status("WebGPU beschikbaar – model wordt geladen bij de eerste kaart","ok");
 else status("WebGPU ontbreekt – gebruik recente Chrome of Edge","bad");
+
+
+document.addEventListener('DOMContentLoaded',()=>{
+  const d=document.getElementById('download');
+  if(d)d.disabled=true;
+});
+
 </script>
 
 </body></html>
