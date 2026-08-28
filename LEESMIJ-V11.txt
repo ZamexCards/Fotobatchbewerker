@@ -1,0 +1,10 @@
+ZamexCards Fotobatchbewerker V11
+
+- Watermerk breedte standaard 28.
+- De afwijzing 'Geen betrouwbare match – velden blijven leeg' is verwijderd.
+- De beste gevonden database/artworkmatch wordt nu daadwerkelijk overgenomen.
+- Naam, set en kaartnummer worden daardoor in de kaartvelden gezet.
+- Het herkenningsresultaat blijft bewaard voor de ZIP-bestandsnaam.
+- Timingfix van V9/V10 blijft behouden: herkenning eerst volledig klaar, daarna ZIP.
+
+GitHub: vervang alleen index.html.
