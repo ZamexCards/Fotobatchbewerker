@@ -1,0 +1,24 @@
+ZamexCards Fotobatchbewerker V14
+
+BELANGRIJK:
+Het kleine kaartplaatje onder de diagnose in oudere versies was vaak de uitgesneden
+kaart uit je eigen foto. Dat betekende niet automatisch dat de database die kaart
+al had geïdentificeerd.
+
+V14 verandert de volgorde:
+1. volledige kaart uitsnijden;
+2. directe gratis beeldmatch uitvoeren;
+3. product/card-ID ophalen;
+4. kaartnaam uit dat product overnemen;
+5. kaartnaam bewaren voor ZIP;
+6. Florence/OCR alleen nog als fallback.
+
+Voor bestandsnamen wordt alleen gebruikt:
+001 Kaartnaam - Voorkant
+001 Kaartnaam - Achterkant
+
+Set en nummer zijn niet meer nodig voor de bestandsnaam.
+Watermerk breedte blijft standaard 28.
+
+GitHub:
+Vervang alleen index.html.
