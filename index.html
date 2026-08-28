@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Vision Matcher V6</title>
+<title>ZamexCards Fotobatchbewerker – Browser AI Matcher V8</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -120,6 +120,14 @@ h2{color:#fff;font-size:28px}
 .recog-debug{margin-top:10px;padding:10px;border:1px solid #315e82;border-radius:12px;background:#062946;font-size:12px;color:#d8ecf8;display:grid;grid-template-columns:72px 1fr;gap:10px;align-items:center}
 .recog-debug img{width:72px;height:101px;object-fit:contain;border-radius:7px;background:#fff}
 .recog-debug .diag{line-height:1.45;word-break:break-word}
+
+.ai8box{margin:14px 0;padding:15px 18px;border:1px solid #43d56c;border-radius:16px;background:#082f4f}
+.ai8row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ai8dot{width:12px;height:12px;border-radius:50%;background:#f2b437;display:inline-block}
+.ai8dot.ok{background:#45d35b;box-shadow:0 0 0 5px rgba(69,211,91,.12)}
+.ai8dot.bad{background:#e84e4e}
+.ai8small{font-size:13px;color:#cfe1ee;margin-top:6px}
+
 </style>
 </head>
 <body>
@@ -186,8 +194,8 @@ h2{color:#fff;font-size:28px}
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>ZamexCards slimme herkenning – naam + set + nummer + afbeelding (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
-      <div class="help">De slimme herkenning gebruikt OCR alleen als aanwijzing. Daarna zoekt hij kandidaten op kaartnummer/naam en vergelijkt de kaartafbeelding met de database. Alleen naam, set en kaartnummer worden overgenomen.</div>
+      <select id="ocrMode"><option value="hybrid" selected>Browser AI V8 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <div class="help">V8 draait Florence-2 rechtstreeks in Chrome via WebGPU. Hij leest vooral de setcode en het kaartnummer onderaan, controleert die tegen de kaartdatabase en gebruikt artwork als extra controle.</div>
     </div>
   </div>
   <div class="row two" style="margin-top:14px">
@@ -206,12 +214,26 @@ h2{color:#fff;font-size:28px}
 </section>
 
 <section class="panel">
+  <div class="ai8box">
+    <div class="ai8row">
+      <span id="ai8dot" class="ai8dot"></span>
+      <strong>Browser AI V8</strong>
+      <span id="ai8status">WebGPU controleren…</span>
+    </div>
+    <div class="ai8small">
+      Geen installatie en geen betaalde scan-API. Florence-2 draait rechtstreeks in Chrome.
+      De eerste herkenning downloadt het AI-model éénmalig naar de browsercache.
+    </div>
+  </div>
+</section>
+
+<section class="panel">
   <div class="footer-actions">
     <button id="prepare" class="secondary">Foto's koppelen</button>
     <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
-  <div id="status" class="status">Vision Matcher V6 geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Browser AI Matcher V8 geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -761,28 +783,151 @@ async function enrichTcgdexMatch(best,hints){
     confidence:Math.round(best.total), imageScore:Math.round(best.imageScore), source:'ZamexCards combinatieherkenning'
   };
 }
+
+function ai8CanvasData(canvas,quality=.94){
+  return canvas.toDataURL('image/jpeg',quality);
+}
+function ai8Crop(src,x,y,w,h,outW=1500){
+  const out=document.createElement('canvas');
+  out.width=outW; out.height=Math.max(1,Math.round(h*outW/w));
+  const c=out.getContext('2d',{alpha:false});
+  c.fillStyle='#fff'; c.fillRect(0,0,out.width,out.height);
+  c.imageSmoothingEnabled=true; c.imageSmoothingQuality='high';
+  c.drawImage(src,x,y,w,h,0,0,out.width,out.height);
+  return out;
+}
+function ai8FlattenText(v){
+  if(v==null)return '';
+  if(typeof v==='string')return v;
+  if(Array.isArray(v))return v.map(ai8FlattenText).join(' ');
+  if(typeof v==='object'){
+    if(typeof v.text==='string')return v.text;
+    if(Array.isArray(v.labels))return v.labels.join(' ');
+    return Object.values(v).map(ai8FlattenText).join(' ');
+  }
+  return String(v);
+}
+function ai8ParseIdentity(raw){
+  const s=String(raw||'').replace(/\s+/g,' ').trim();
+
+  // Collector numbers: 092/066, 211/190, 101/098, 014/172, etc.
+  let m=s.match(/\b([0-9]{1,3})\s*[\/|]\s*([0-9]{2,3})\b/i);
+  let cardno=m?m[1].padStart(m[1].length,'0'):'';
+
+  // Promo styles such as SWSH260 or MEP 043
+  if(!cardno){
+    const p=s.match(/\b(?:MEP|SWSH|SM|XY)\s*[- ]?\s*([0-9]{2,3})\b/i);
+    if(p)cardno=p[1];
+  }
+
+  // Prefer explicit Pokémon set-code shapes near the bottom.
+  const codes=[
+    /\b(SV\d+[a-zA-Z]?)\b/i,
+    /\b(S\d+[a-zA-Z]?)\b/i,
+    /\b(SWSH)\s*[- ]?\d{2,3}\b/i,
+    /\b(MEP)\b/i,
+    /\b([A-Z]{2,5}\d?)\b/
+  ];
+  let set='';
+  for(const r of codes){
+    const x=s.match(r);
+    if(x){set=x[1];break;}
+  }
+  return {setHint:set,cardno,rawBottom:s};
+}
+async function recognizeWithBrowserAI(pair){
+  if(!window.ZamexBrowserAI) throw new Error('Browser AI module is nog niet geladen');
+  const img=await loadImage(pair.front);
+  const card=studioCardCropCanvas(img);
+
+  // Florence sees a high-resolution lower strip for the printed set/collector number.
+  const bottom=ai8Crop(card,0,Math.round(card.height*.72),card.width,Math.round(card.height*.28),1700);
+  const top=ai8Crop(card,0,0,card.width,Math.round(card.height*.22),1500);
+
+  const bottomOCR=ai8FlattenText(await window.ZamexBrowserAI.ocr(ai8CanvasData(bottom,.97)));
+  const topOCR=ai8FlattenText(await window.ZamexBrowserAI.ocr(ai8CanvasData(top,.96)));
+  const fullOCR=ai8FlattenText(await window.ZamexBrowserAI.ocr(ai8CanvasData(card,.95)));
+
+  let ident=ai8ParseIdentity(bottomOCR+' '+fullOCR);
+  let hints={
+    name:'',
+    setHint:ident.setHint||'',
+    cardno:ident.cardno||'',
+    rawBottom:bottomOCR,
+    cardCanvas:card,
+    cropSource:card.dataset.cropSource||'Browser AI crop'
+  };
+
+  // Most reliable route: set code + collector number -> exact database card.
+  if(hints.setHint && hints.cardno){
+    try{
+      const exact=await lookupOpenTcgByIdentity(hints);
+      if(exact?.name && exact?.cardno){
+        exact.source='Florence-2 OCR → set/nummer database';
+        exact.confidence=99;
+        exact.scanInfo=`Browser AI las: ${hints.setHint} ${hints.cardno} | onderkant: ${bottomOCR.slice(0,240)}`;
+        exact.cropSource=hints.cropSource;
+        return exact;
+      }
+    }catch(e){}
+  }
+
+  // TCGdex candidate route: use number first, OCR name only as secondary hint.
+  hints.name=(topOCR.match(/[A-Za-z][A-Za-z .'-]{2,30}/)||[])[0]||'';
+  try{
+    const candidates=await tcgdexCandidates(hints);
+    if(candidates.length){
+      const scored=[];
+      for(let i=0;i<candidates.length;i+=8){
+        const part=await Promise.all(candidates.slice(i,i+8).map(c=>scoreCandidate(c,hints,card)));
+        scored.push(...part.filter(x=>x.total>=0));
+      }
+      scored.sort((a,b)=>b.total-a.total);
+      const best=scored[0];
+      if(best && (best.imageScore>=48 || (best.numberScore===100&&best.imageScore>=30))){
+        const e=await enrichTcgdexMatch(best,hints);
+        if(e){
+          e.source='Florence-2 OCR + artworkvergelijking';
+          e.confidence=Math.max(90,Math.round(best.imageScore||0));
+          e.scanInfo=`Browser AI: ${hints.setHint||'-'} ${hints.cardno||'-'} | artwork ${Math.round(best.imageScore||0)}%`;
+          return e;
+        }
+      }
+    }
+  }catch(e){}
+
+  return null;
+}
+
 async function recognizeHybrid(pair){
   window.__lastScanInfo='';
   window.__identityLookupInfo='';
 
-  let visual=null;
-  try{visual=await recognizeByImage(pair,{});}catch(e){console.warn('Primaire beeldscan mislukt',e);}
-  if(visual?.name && visual?.cardno){
-    visual.ocrName='';visual.ocrCardno='';visual.ocrSet='';visual.rawBottom='';
-    return visual;
+  // V8 route 1: Florence-2 entirely inside Chrome/Edge via WebGPU.
+  try{
+    const ai=await recognizeWithBrowserAI(pair);
+    if(ai?.name && ai?.cardno){
+      ai.ocrName=''; ai.ocrCardno=''; ai.ocrSet=''; ai.rawBottom='';
+      return ai;
+    }
+  }catch(e){
+    window.__lastScanInfo='Browser AI: '+(e?.message||String(e));
+    console.warn('V8 Browser AI',e);
   }
 
+  // Route 2: existing targeted OCR/database fallback, so V8 still works
+  // on a browser/device where WebGPU is unavailable.
   const hints=await readRecognitionHints(pair);
-
   try{
     const exact=await lookupOpenTcgByIdentity(hints);
     if(exact?.name && exact?.cardno){
-      exact.ocrName=hints.name||'';exact.ocrCardno=hints.cardno||'';
-      exact.ocrSet=hints.setHint||'';exact.rawBottom=hints.rawBottom||'';
+      exact.source='OCR + database fallback';
+      exact.ocrName=hints.name||''; exact.ocrCardno=hints.cardno||'';
+      exact.ocrSet=hints.setHint||''; exact.rawBottom=hints.rawBottom||'';
       exact.cropSource=hints.cropSource||'';
       return exact;
     }
-  }catch(e){console.warn('Directe set/nummer lookup mislukt',e);}
+  }catch(e){}
 
   const candidates=await tcgdexCandidates(hints);
   if(candidates.length){
@@ -793,16 +938,14 @@ async function recognizeHybrid(pair){
     }
     scored.sort((a,b)=>b.total-a.total);
     const best=scored[0];
-    if(best){
-      const reliable=(best.numberScore===100&&best.imageScore>=38)||(best.total>=56&&best.imageScore>=44)||best.imageScore>=66;
-      if(reliable){
-        const enriched=await enrichTcgdexMatch(best,hints);
-        if(enriched){
-          enriched.ocrName=hints.name||'';enriched.ocrCardno=hints.cardno||'';
-          enriched.ocrSet=hints.setHint||'';enriched.rawBottom=hints.rawBottom||'';
-          enriched.cropSource=hints.cropSource||'';
-          return enriched;
-        }
+    if(best && ((best.numberScore===100&&best.imageScore>=38)||best.imageScore>=66)){
+      const enriched=await enrichTcgdexMatch(best,hints);
+      if(enriched){
+        enriched.source='OCR + TCGdex fallback';
+        enriched.ocrName=hints.name||''; enriched.ocrCardno=hints.cardno||'';
+        enriched.ocrSet=hints.setHint||''; enriched.rawBottom=hints.rawBottom||'';
+        enriched.cropSource=hints.cropSource||'';
+        return enriched;
       }
     }
   }
@@ -811,7 +954,7 @@ async function recognizeHybrid(pair){
     name:'',set:'',cardno:'',confidence:0,source:'geen betrouwbare match',
     ocrName:hints.name||'',ocrCardno:hints.cardno||'',ocrSet:hints.setHint||'',
     rawBottom:hints.rawBottom||'',cropSource:hints.cropSource||'',
-    scanInfo:[window.__lastScanInfo||'beeldscan: geen resultaat',window.__identityLookupInfo||'set/nummer lookup: geen resultaat'].join(' | ')
+    scanInfo:[window.__lastScanInfo||'Browser AI: geen match',window.__identityLookupInfo||'database: geen match'].join(' | ')
   };
 }
 async function canvasToScanDataUrl(source){
@@ -960,14 +1103,14 @@ $('recognize').onclick=async()=>{
      card.querySelector('.recog-preview').src=rc.toDataURL('image/jpeg',.78);
      const cropInfo=rc.dataset.cropSource||'onbekend';
      const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
-     dbg.querySelector('.diag').textContent=`V6 | Crop: ${cropInfo} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
+     dbg.querySelector('.diag').textContent=`V8 | Crop: ${cropInfo} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
    }catch(e){dbg.querySelector('.diag').textContent='Diagnose kon niet worden gemaakt.'}
    if(r?.name && r?.cardno){found++; card.title=`${r.source||'Herkenning'}${r.confidence?' '+Math.round(r.confidence)+'%':''}${r.setName?' – '+r.setName:''}`;}
    $('bar').style.width=((i+1)/pairs.length*100)+'%';
  }
  if(found===pairs.length)setStatus(`Klaar: alle ${found} kaarten zijn herkend. Controleer de gegevens vóór export.`, 'ok');
  else if(found)setStatus(`Klaar: ${found} van ${pairs.length} kaarten zijn herkend. Niet-herkende kaarten blijven leeg zodat er geen verkeerde naam in de ZIP komt.`, 'warn');
- else setStatus('Er is geen betrouwbare kaartmatch gevonden. V6 gebruikt eerst gratis beeldherkenning van de volledige kaart en pas daarna OCR/database-fallback. Bekijk de diagnose per kaart hieronder.', 'warn');
+ else setStatus('Er is geen betrouwbare kaartmatch gevonden. V8 gebruikt Florence-2 AI rechtstreeks in Chrome via WebGPU, daarna set/nummer-databasecontrole en pas als laatste OCR-fallback.', 'warn');
 }
 function safeName(s){return (s||'').replace(/[<>:"/\\|?*]+/g,'').replace(/\s+/g,' ').trim()}
 
@@ -1130,4 +1273,63 @@ $('download').onclick=async()=>{
  setStatus(`Klaar: ${total} afbeeldingen ${layoutText}.`, 'ok');
 }
 </script>
+
+<script type="module">
+import {
+  Florence2ForConditionalGeneration,
+  AutoProcessor,
+  AutoTokenizer,
+  RawImage,
+} from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
+
+const MODEL="onnx-community/Florence-2-base-ft";
+let model=null, processor=null, tokenizer=null, loading=null;
+
+function status(msg,state=""){
+  const el=document.getElementById("ai8status");
+  const dot=document.getElementById("ai8dot");
+  if(el) el.textContent=msg;
+  if(dot){ dot.classList.remove("ok","bad"); if(state)dot.classList.add(state); }
+}
+async function ensure(){
+  if(model) return;
+  if(loading) return loading;
+  loading=(async()=>{
+    if(!navigator.gpu) throw new Error("WebGPU niet beschikbaar. Gebruik recente Chrome of Edge.");
+    status("AI-model laden… eerste keer kan dit even duren");
+    processor=await AutoProcessor.from_pretrained(MODEL);
+    tokenizer=await AutoTokenizer.from_pretrained(MODEL);
+    model=await Florence2ForConditionalGeneration.from_pretrained(MODEL,{
+      device:"webgpu",
+      dtype:{
+        embed_tokens:"fp16",
+        vision_encoder:"fp16",
+        encoder_model:"q4",
+        decoder_model_merged:"q4",
+      },
+    });
+    status("Klaar – AI draait in deze browser","ok");
+  })().catch(e=>{loading=null;status("AI kon niet laden: "+e.message,"bad");throw e;});
+  return loading;
+}
+async function run(dataURL,task){
+  await ensure();
+  const image=await RawImage.fromURL(dataURL);
+  const vision_inputs=await processor(image);
+  const prompts=processor.construct_prompts(task);
+  const text_inputs=tokenizer(prompts);
+  const ids=await model.generate({...text_inputs,...vision_inputs,max_new_tokens:512,num_beams:1});
+  const generated=tokenizer.batch_decode(ids,{skip_special_tokens:false})[0];
+  const result=processor.post_process_generation(generated,task,image.size);
+  return result?.[task] ?? generated;
+}
+window.ZamexBrowserAI={
+  ensure,
+  ocr:(dataURL)=>run(dataURL,"<OCR>"),
+  detailed:(dataURL)=>run(dataURL,"<MORE_DETAILED_CAPTION>")
+};
+if(navigator.gpu) status("WebGPU beschikbaar – model wordt geladen bij de eerste kaart","ok");
+else status("WebGPU ontbreekt – gebruik recente Chrome of Edge","bad");
+</script>
+
 </body></html>

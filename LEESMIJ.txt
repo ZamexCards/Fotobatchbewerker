@@ -1,0 +1,21 @@
+ZamexCards Fotobatchbewerker V8 – GitHub Pages
+
+UPLOAD NAAR GITHUB
+1. Open je bestaande repository Fotobatchbewerker.
+2. Upload index.html uit deze ZIP en vervang de bestaande index.html.
+3. Commit changes.
+4. Open daarna je normale GitHub Pages adres.
+
+BELANGRIJK
+- Niets installeren op Windows.
+- Geen API-key.
+- Geen betaalde scan-API.
+- Gebruik een recente Chrome of Edge met WebGPU.
+- Bij de eerste kaart downloadt Chrome het Florence-2 AI-model. Dat kan even duren.
+- Daarna wordt het model door de browser gecachet.
+
+HERKENNING
+Foto -> kaart uitsnijden -> Florence-2 OCR in browser -> setcode + kaartnummer ->
+databasecontrole -> artworkcontrole -> Engelse kaartnaam -> bestandsnaam/ZIP.
+
+De bestaande batchbewerking, nummering, watermerk en ZIP-uitvoer zijn behouden.
