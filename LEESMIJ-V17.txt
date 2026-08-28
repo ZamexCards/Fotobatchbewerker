@@ -1,0 +1,19 @@
+ZamexCards Fotobatchbewerker V17
+
+Nieuw:
+- Werkende Engelse herkenning uit V16 behouden.
+- Japanse kaartnamen worden uit Florence/OCR-resultaat herkend.
+- Japanse Pokémonnaam wordt omgezet naar officiële Engelse naam.
+- Ook Mela / メロコ is toegevoegd voor de geteste trainerkaart.
+- ZIP/map gebruikt alleen nummer + kaartnaam; set en kaartnummer staan niet in de bestandsnaam.
+- Watermerkbreedte blijft standaard 28.
+
+Voorbeelden:
+リザード -> Charmeleon
+ヒトデマン -> Staryu
+クサイハナ -> Gloom
+メロコ -> Mela
+リザードンVSTAR -> Charizard VSTAR
+
+GitHub Pages:
+Vervang de bestaande index.html door index.html uit deze ZIP.
