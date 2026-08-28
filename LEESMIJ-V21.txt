@@ -1,0 +1,14 @@
+ZamexCards Fotobatchbewerker V21
+
+Nieuw:
+- 'Fire' en vergelijkbare losse beschrijvingswoorden worden niet meer als kaartnaam geaccepteerd.
+- Moeilijke Japanse kaarten krijgen een tweede CLIP-poging met 3 artwork-crops.
+- Meer Pokémon-kandidaten worden getest.
+- Kandidaten worden tegen echte Japanse TCGdex-kaartafbeeldingen gevalideerd.
+- Lagere artworkscore wordt alleen geaccepteerd bij een duidelijke voorsprong op nummer 2.
+- Engelse herkenning blijft behouden.
+- Bestandsnamen blijven nummer + kaartnaam.
+- Watermerkbreedte blijft standaard 28.
+
+GitHub Pages:
+Vervang alleen index.html.
