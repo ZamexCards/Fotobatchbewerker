@@ -116,6 +116,10 @@ h2{color:#fff;font-size:28px}
 .header-logo{width:110px;height:110px;object-fit:contain;flex:0 0 auto}
 .header-copy{min-width:0}
 @media(max-width:650px){.header-brand{gap:12px}.header-logo{width:78px;height:78px}}
+
+.recog-debug{margin-top:10px;padding:10px;border:1px solid #315e82;border-radius:12px;background:#062946;font-size:12px;color:#d8ecf8;display:grid;grid-template-columns:72px 1fr;gap:10px;align-items:center}
+.recog-debug img{width:72px;height:101px;object-fit:contain;border-radius:7px;background:#fff}
+.recog-debug .diag{line-height:1.45;word-break:break-word}
 </style>
 </head>
 <body>
@@ -247,7 +251,8 @@ $('prepare').onclick=async()=>{
    const div=document.createElement('div');div.className='card';div.dataset.index=pairs.length-1;
    div.innerHTML=`<div><span class="tag">${formatNum(p.num)}</span><span class="tag">Voor + Achter</span></div>
    <div class="thumbs" style="margin-top:8px"><div class="thumb"><img src="${frontURL}"></div><div class="thumb">${backURL?`<img src="${backURL}">`:'ONTBREEKT'}</div></div>
-   <div class="meta"><div class="wide"><label>Pokémon / kaartnaam</label><input class="name" type="text" placeholder="Mega Greninja ex"></div><div><label>Set</label><input class="set" type="text" placeholder="CRI"></div><div><label>Kaartnummer</label><input class="cardno" type="text" placeholder="122"></div></div>`;
+   <div class="meta"><div class="wide"><label>Pokémon / kaartnaam</label><input class="name" type="text" placeholder="Mega Greninja ex"></div><div><label>Set</label><input class="set" type="text" placeholder="CRI"></div><div><label>Kaartnummer</label><input class="cardno" type="text" placeholder="122"></div></div>
+   <div class="recog-debug"><img class="recog-preview" alt="Herkenningsuitsnede"><div class="diag">Nog niet herkend.</div></div>`;
    wrap.appendChild(div);
  }
 }
@@ -318,6 +323,72 @@ function similarity(a,b){
   for(const g of A){for(let i=0;i<B.length;i++)if(!used[i]&&B[i]===g){used[i]=true;hit++;break}}
   return (2*hit)/Math.max(1,A.length+B.length);
 }
+
+async function detectRecognitionCardRect(img){
+  // Zoek de echte buitenranden van de kaart in de ruwe foto. Dit is uitsluitend
+  // voor herkenning en staat los van de uiteindelijke vierkante productcrop.
+  const maxW=520;
+  const scale=Math.min(1,maxW/img.width);
+  const w=Math.max(160,Math.round(img.width*scale));
+  const h=Math.max(220,Math.round(img.height*scale));
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d',{willReadFrequently:true});
+  x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(img,0,0,w,h);
+  const d=x.getImageData(0,0,w,h).data;
+  const g=new Float32Array(w*h);
+  for(let i=0,j=0;i<d.length;i+=4,j++)g[j]=.2126*d[i]+.7152*d[i+1]+.0722*d[i+2];
+  const smooth=(a,i,r=4)=>{let s=0,n=0;for(let k=Math.max(0,i-r);k<=Math.min(a.length-1,i+r);k++){s+=a[k];n++}return s/Math.max(1,n)};
+  const vs=new Float32Array(w);
+  const y1=Math.floor(h*.08),y2=Math.floor(h*.82);
+  for(let xx=2;xx<w-2;xx++){
+    let s=0,n=0;
+    for(let yy=y1;yy<y2;yy+=2){const k=yy*w+xx;s+=Math.abs(g[k+1]-g[k-1]);n++}
+    vs[xx]=s/Math.max(1,n);
+  }
+  let left=0,right=w-1,ls=-1,rs=-1;
+  for(let xx=Math.floor(w*.08);xx<Math.floor(w*.49);xx++){const q=smooth(vs,xx);if(q>ls){ls=q;left=xx}}
+  for(let xx=Math.floor(w*.51);xx<Math.floor(w*.92);xx++){const q=smooth(vs,xx);if(q>rs){rs=q;right=xx}}
+  const cw=right-left;
+  if(cw<w*.24||cw>w*.76||ls<2.5||rs<2.5)return null;
+  const hs=new Float32Array(h);
+  const ix1=Math.max(2,Math.floor(left+cw*.08)),ix2=Math.min(w-3,Math.floor(right-cw*.08));
+  for(let yy=2;yy<h-2;yy++){
+    let s=0,n=0;
+    for(let xx=ix1;xx<ix2;xx+=2){const k=yy*w+xx;s+=Math.abs(g[k+w]-g[k-w]);n++}
+    hs[yy]=s/Math.max(1,n);
+  }
+  let top=0,ts=-1;
+  for(let yy=Math.floor(h*.05);yy<Math.floor(h*.62);yy++){const q=smooth(hs,yy,3);if(q>ts){ts=q;top=yy}}
+  if(ts<2.5)return null;
+  const ch=cw*(88/63);
+  if(ch<h*.28||ch>h*.82||top+ch>h*.97)return null;
+  const padX=cw*.018,padY=ch*.012;
+  return {
+    x:Math.max(0,(left-padX)/scale),
+    y:Math.max(0,(top-padY)/scale),
+    w:Math.min(img.width,(cw+padX*2)/scale),
+    h:Math.min(img.height,(ch+padY*2)/scale),
+    confidence:Math.min(ls,rs,ts)
+  };
+}
+async function recognitionCardCanvas(img){
+  const rect=await detectRecognitionCardRect(img);
+  if(rect){
+    const out=document.createElement('canvas');out.width=504;out.height=704;
+    const x=out.getContext('2d',{alpha:false});x.fillStyle='#fff';x.fillRect(0,0,out.width,out.height);
+    x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';
+    const sx=Math.max(0,Math.min(rect.x,img.width-1)),sy=Math.max(0,Math.min(rect.y,img.height-1));
+    const sw=Math.min(rect.w,img.width-sx),sh=Math.min(rect.h,img.height-sy);
+    x.drawImage(img,sx,sy,sw,sh,0,0,out.width,out.height);
+    out.dataset.cropSource='automatisch';
+    out.dataset.cropConfidence=String(rect.confidence||0);
+    return out;
+  }
+  const fallback=studioCardCropCanvas(img);
+  fallback.dataset.cropSource='vaste studio fallback';
+  fallback.dataset.cropConfidence='0';
+  return fallback;
+}
 function studioCardCropCanvas(img){
   const refW=1153, refH=2048;
   const cfg={x:227.60/refW, y:524.40/refH, side:671.32/refW};
@@ -336,7 +407,7 @@ function studioCardCropCanvas(img){
 }
 async function readRecognitionHints(pair){
   const img=await loadImage(pair.front);
-  const card=studioCardCropCanvas(img);
+  const card=await recognitionCardCanvas(img);
   // Naam: alleen bovenste kaartgedeelte.
   const nameCrop=document.createElement('canvas'); nameCrop.width=1600; nameCrop.height=330;
   let nctx=nameCrop.getContext('2d'); nctx.filter='grayscale(1) contrast(1.85) brightness(1.12)';
@@ -506,7 +577,7 @@ async function recognizeByImage(pair){
   // Zelfstandige beeldherkenning: deze route werkt ook als OCR niets kan lezen.
   try{
     const img=await loadImage(pair.front);
-    const crop=studioCardCropCanvas(img);
+    const crop=await recognitionCardCanvas(img);
     const packed=await canvasToScanDataUrl(crop);
     if(!packed)return null;
 
@@ -573,12 +644,21 @@ $('recognize').onclick=async()=>{
    card.querySelector('.name').value=pairs[i].name||'';
    card.querySelector('.set').value=pairs[i].set||'';
    card.querySelector('.cardno').value=pairs[i].cardno||'';
+   const dbg=card.querySelector('.recog-debug');
+   try{
+     const im=await loadImage(pairs[i].front);
+     const rc=await recognitionCardCanvas(im);
+     card.querySelector('.recog-preview').src=rc.toDataURL('image/jpeg',.78);
+     const cropInfo=rc.dataset.cropSource||'onbekend';
+     const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
+     dbg.querySelector('.diag').textContent=`Uitsnede: ${cropInfo} | Bron: ${r?.source||'-'} | Score: ${conf} | Naam: ${r?.name||'-'} | Set: ${r?.set||'-'} | Nr: ${r?.cardno||'-'}`;
+   }catch(e){dbg.querySelector('.diag').textContent='Diagnose kon niet worden gemaakt.'}
    if(r?.name && r?.cardno){found++; card.title=`${r.source||'Herkenning'}${r.confidence?' '+Math.round(r.confidence)+'%':''}${r.setName?' – '+r.setName:''}`;}
    $('bar').style.width=((i+1)/pairs.length*100)+'%';
  }
  if(found===pairs.length)setStatus(`Klaar: alle ${found} kaarten zijn herkend. Controleer de gegevens vóór export.`, 'ok');
  else if(found)setStatus(`Klaar: ${found} van ${pairs.length} kaarten zijn herkend. Niet-herkende kaarten blijven leeg zodat er geen verkeerde naam in de ZIP komt.`, 'warn');
- else setStatus('Er is geen betrouwbare kaartmatch gevonden. Controleer of de kaart volledig en recht in beeld staat.', 'warn');
+ else setStatus('Er is geen betrouwbare kaartmatch gevonden. Bekijk per kaart de herkenningsuitsnede hieronder: daarop moet uitsluitend de volledige voorkant van de Pokémonkaart staan.', 'warn');
 }
 function safeName(s){return (s||'').replace(/[<>:"/\\|?*]+/g,'').replace(/\s+/g,' ').trim()}
 
