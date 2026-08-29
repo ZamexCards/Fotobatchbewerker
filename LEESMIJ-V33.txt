@@ -1,0 +1,20 @@
+ZamexCards Fotobatchbewerker V33
+
+Deze versie is niet meer op gevoel aangepast, maar op basis van een directe
+pixelvergelijking tussen:
+
+- de huidige V32-uitvoer
+- 'zo moeten de afbeeldingen worden'
+
+Gemeten verschil op 1500x1500:
+- huidige kaart stond ongeveer 77-80 px te ver naar rechts;
+- huidige kaart stond ongeveer 29 px te hoog;
+- huidige kaart was ongeveer 1,1% te groot.
+
+V33 corrigeert precies deze drie punten.
+
+Overige instellingen:
+- originele kleuren blijven behouden;
+- logo blijft een aparte laatste layer;
+- PNG blijft verliesvrij;
+- workflow blijft zonder kaartherkenning.
