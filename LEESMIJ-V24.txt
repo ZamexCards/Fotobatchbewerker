@@ -1,0 +1,18 @@
+ZamexCards Fotobatchbewerker V24
+
+Nieuwe workflow:
+1. Selecteer foto's.
+2. Klik 'Foto's koppelen & verwerken'.
+   Alle foto's worden direct gekoppeld en bewerkt.
+3. Zodra alles op 100% staat, wordt 'Maak ZIP-bestand aan' actief.
+4. Klik daarop en de ZIP-download start automatisch.
+
+Geen kaartherkenning meer nodig.
+
+Voorbeeld bestandsnamen:
+23-3332 - Voorkant.png
+23-3332 - Achterkant.png
+23-3333 - Voorkant.png
+23-3333 - Achterkant.png
+
+Alle bestaande crop-, watermark-, resolutie-, formaat- en ZIP-instellingen blijven behouden.
