@@ -1,0 +1,13 @@
+ZamexCards Fotobatchbewerker V26
+
+Gerichte compositie-aanpassing:
+- De kaart blijft even groot als in de eerdere gewenste voorbeeldfoto.
+- De kaart wordt horizontaal beter in het midden gezet.
+- De volledige compositie wordt iets omhoog geschoven zodat de bovenruimte kleiner wordt.
+- De groene houder blijft zichtbaar.
+- Geen automatische kleurcorrectie.
+- Eigen logo blijft als laatste layer over de afbeelding/kaart.
+- De V24/V25 workflow zonder kaartherkenning blijft behouden.
+
+Workflow:
+Foto's koppelen & verwerken -> Maak ZIP-bestand aan -> automatische download.
