@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Meertalige Naamherkenning V22</title>
+<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V23 – zonder kaartherkenning</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -138,6 +138,13 @@ h2{color:#fff;font-size:28px}
 .recog-state.warn{color:#ffc04a}
 button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
 
+
+/* V23: kaartherkenning is bewust verwijderd uit de workflow */
+.meta .recognition-only,
+.recog-debug,
+.recog-state,
+.ai8box { display:none !important; }
+
 </style>
 </head>
 <body>
@@ -204,7 +211,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Meertalige Naamherkenning V22 – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V23 – zonder kaartherkenning – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -227,7 +234,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Meertalige Naamherkenning V22</strong>
+      <strong>Fotobatchbewerker V23 – zonder kaartherkenning</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -240,23 +247,23 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
 <section class="panel">
   <div class="footer-actions">
     <button id="prepare" class="secondary">Foto's koppelen</button>
-    <button id="recognize" class="ghost">Kaarten automatisch herkennen</button>
+    <button id="recognize" class="ghost" disabled>Kaartherkenning uitgeschakeld</button>
     <button id="download" class="primary">Alles verwerken & ZIP downloaden</button>
   </div>
-  <div id="status" class="status">Meertalige Naamherkenning V22 geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Fotobatchbewerker V23 – zonder kaartherkenning geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
 <section class="panel">
   <h2 style="margin-top:0">Controle vóór export</h2>
-  <div class="help" style="margin-bottom:14px">Elke twee foto's vormen één kaart. Voor de bestandsnaam wordt alleen de kaartnaam gebruikt.</div>
+  <div class="help" style="margin-bottom:14px">Elke twee foto's vormen één kaart. De bestandsnaam gebruikt alleen het volgnummer van de kaart.</div>
   <div id="cards" class="cards"></div>
 </section>
 </main>
 <canvas id="canvas" width="1500" height="1500"></canvas>
 <script>
 const $=id=>document.getElementById(id);
-let pairs=[]; let watermarkImg=null; let recognitionBusy=false; let recognitionCompleted=false;
+let pairs=[]; let watermarkImg=null; let recognitionBusy=false; let recognitionCompleted=true;
 function sequenceNumber(startValue, offset){
  const raw=String(startValue??'1').trim()||'1';
  const m=raw.match(/^(.*?)(\d+)$/);
@@ -274,7 +281,7 @@ function loadImage(file){return new Promise((resolve,reject)=>{const img=new Ima
 function dataURL(file){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file)})}
 $('watermark').addEventListener('change',async e=>{if(e.target.files[0]){watermarkImg=await loadImage(e.target.files[0]);setStatus('Watermerk geladen.','ok')}})
 $('prepare').onclick=async()=>{
- recognitionBusy=false; recognitionCompleted=false; $('download').disabled=true;
+ recognitionBusy=false; recognitionCompleted=true; $('download').disabled=true;
  const files=[...$('photos').files]; if(!files.length){setStatus('Selecteer eerst foto\'s.','warn');return}
  if(files.length%2!==0)setStatus(`Let op: ${files.length} foto\'s geladen. De laatste foto heeft geen partner.`,'warn'); else setStatus(`${files.length} foto\'s geladen = ${files.length/2} kaarten.`,'ok');
  pairs=[]; const start=$('startNo').value||'1'; const wrap=$('cards'); wrap.innerHTML='';
@@ -1787,7 +1794,7 @@ $('recognize').onclick=async()=>{
  if(mode==='off'){setStatus('Automatische herkenning staat uit.','warn');return}
 
  recognitionBusy=true;
- recognitionCompleted=false;
+ recognitionCompleted=true;
  $('recognize').disabled=true;
  $('download').disabled=true;
  $('prepare').disabled=true;
@@ -1835,7 +1842,7 @@ $('recognize').onclick=async()=>{
        const pv=card?.querySelector('.recog-preview');
        if(pv)pv.src=rc.toDataURL('image/jpeg',.88);
        const dg=card?.querySelector('.diag');
-       if(dg)dg.textContent=`V22 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
+       if(dg)dg.textContent=`V23 | Crop: ${rc.dataset.cropSource||'onbekend'} | AI/database wordt nu uitgevoerd…`;
      }catch(e){}
 
      // Geef de browser één frame om bovenstaande zichtbaar te maken.
@@ -1852,7 +1859,7 @@ $('recognize').onclick=async()=>{
        const dbg=card.querySelector('.diag');
        const conf=r?.confidence?Math.round(r.confidence)+'%':'-';
        if(dbg){
-         dbg.textContent=`V22 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
+         dbg.textContent=`V23 | Crop: ${r?.cropSource||'ZamexCards studio-profiel'} | OCR naam: ${r?.ocrName||'-'} | OCR set: ${r?.ocrSet||'-'} | OCR nr: ${r?.ocrCardno||'-'} | Resultaat: ${r?.name||'-'} ${r?.set||''} ${r?.cardno||''} | Bron: ${r?.source||'-'} | Zekerheid: ${conf} | Diagnose: ${r?.scanInfo||window.__identityLookupInfo||window.__lastScanInfo||'-'}`;
        }
 
        card.classList.remove('recognizing');
@@ -2046,9 +2053,8 @@ $('download').onclick=async()=>{
  const zip=new JSZip(); setStatus('Afbeeldingen worden verwerkt...'); $('bar').style.width='0%'; let done=0,total=pairs.reduce((a,p)=>a+(p.back?2:1),0);
  const zipLayout=$('zipLayout')?.value||'flat';
  for(const p of pairs){
-   const cardName=safeName(p.name)||'Onbekende kaart';
-   const folderName=`${formatNum(p.num)} ${cardName}`;
-   const base=`${formatNum(p.num)} ${cardName}`;
+   const folderName=`${formatNum(p.num)}`;
+   const base=`${formatNum(p.num)}`;
    const ext=$('format').value==='jpg'?'jpg':'png';
    const prefix=zipLayout==='folders' ? `${folderName}/` : '';
    let b=await render(p.front,'front');zip.file(`${prefix}${base} - Voorkant.${ext}`,b);done++;$('bar').style.width=(done/total*100)+'%';
@@ -2161,4 +2167,29 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 </script>
 
+<script>
+function v23HideRecognitionUI(){
+  document.querySelectorAll('label').forEach(l=>{
+    const t=(l.textContent||'').toLowerCase();
+    if(t.includes('pokémon / kaartnaam') || t.includes('pokemon / kaartnaam') ||
+       t.startsWith('set ') || t.includes('kaartnummer')){
+      const box=l.parentElement;
+      if(box) box.style.display='none';
+    }
+  });
+  document.querySelectorAll('.recog-debug,.recog-state,.ai8box').forEach(el=>el.style.display='none');
+}
+document.addEventListener('DOMContentLoaded',()=>setTimeout(v23HideRecognitionUI,300));
+const v23Observer=new MutationObserver(()=>v23HideRecognitionUI());
+document.addEventListener('DOMContentLoaded',()=>{
+  v23Observer.observe(document.body,{childList:true,subtree:true});
+});
+</script>
+<script>
+function v23EnableExport(){
+  const btns=[...document.querySelectorAll('button')];
+  const zipBtn=btns.find(b=>(b.textContent||'').includes('ZIP downloaden'));
+  if(zipBtn && Array.isArray(window.pairs||null) && window.pairs.length) zipBtn.disabled=false;
+}
+</script>
 </body></html>

@@ -1,0 +1,18 @@
+ZamexCards Fotobatchbewerker V23 – ZONDER KAARTHERKENNING
+
+Wat is veranderd:
+- Automatische kaartherkenning is uit de workflow gehaald.
+- Geen AI/OCR/databasecontrole nodig voordat je kunt exporteren.
+- Elke twee foto's blijven één kaart: voorkant + achterkant.
+- De ingestelde startnummering bepaalt de bestandsnaam.
+- Voorbeeld bij startnummer 23-3332:
+  23-3332 - Voorkant.png
+  23-3332 - Achterkant.png
+  23-3333 - Voorkant.png
+  23-3333 - Achterkant.png
+- Bij mapweergave heet de map alleen 23-3332, 23-3333, enz.
+- Alle bestaande fotobewerking, crop, formaat, resolutie, watermark en ZIP-functies zijn behouden.
+- Watermerkbreedte blijft standaard 28.
+
+GitHub Pages:
+Vervang alleen index.html door deze versie.
