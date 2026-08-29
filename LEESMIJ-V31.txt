@@ -1,0 +1,20 @@
+ZamexCards Fotobatchbewerker V31
+
+Deze versie is specifiek afgestemd op het aangewezen voorbeeld.
+
+Doelcompositie:
+- kaart groot in beeld;
+- kaart exact horizontaal gecentreerd;
+- slechts een kleine bovenrand;
+- groene ZamexCards-houder volledig zichtbaar onderaan;
+- houder ongeveer 73% van de afbeelding breed;
+- logo rechtsonder als laatste layer over kaart/houder;
+- kleuren standaard niet aangepast.
+
+Belangrijk:
+V31 zoekt niet meer naar alle groene pixels in de foto.
+Hij zoekt naar de lange, doorlopende groene houder onderaan.
+Daardoor worden achtergrondlogo's of groen kaart-artwork niet meer als houder gezien.
+
+Workflow:
+Foto's koppelen & verwerken -> Maak ZIP-bestand aan -> automatische download.

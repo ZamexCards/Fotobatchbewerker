@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V29 – vaste voorbeeldcompositie</title>
+<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V31 – vaste voorbeeldcompositie</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -203,20 +203,20 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
 
 <section class="panel">
   <div class="row">
-    <div><label>Watermerk breedte</label><input id="wmSize" type="number" min="5" max="50" value="28"><div class="help">Percentage van de afbeeldingbreedte.</div></div>
+    <div><label>Watermerk breedte</label><input id="wmSize" type="number" min="5" max="50" value="25"><div class="help">Percentage van de afbeeldingbreedte.</div></div>
     <div><label>Transparantie</label><input id="wmOpacity" type="number" min="5" max="100" value="35"><div class="help">35% is een rustige standaard.</div></div>
-    <div><label>Marge rechts</label><input id="wmRight" type="number" min="0" max="200" value="20"><div class="help">Pixels vanaf rechterrand.</div></div>
-    <div><label>Marge onder</label><input id="wmBottom" type="number" min="0" max="200" value="20"><div class="help">Pixels vanaf onderrand.</div></div>
+    <div><label>Marge rechts</label><input id="wmRight" type="number" min="0" max="200" value="18"><div class="help">Pixels vanaf rechterrand.</div></div>
+    <div><label>Marge onder</label><input id="wmBottom" type="number" min="0" max="200" value="18"><div class="help">Pixels vanaf onderrand.</div></div>
   </div>
   <div class="row two" style="margin-top:14px">
     <div>
       <label>Kaart uitsnede</label>
       <select id="cropMode"><option value="studio" selected>ZamexCards studio – kaart exact gecentreerd (aanbevolen)</option><option value="auto">Automatisch centreren op de kaart</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
-      <div class="help">De uitvoer volgt nu de gewenste voorbeeldcompositie: kaart groot en gecentreerd, kleine bovenrand, groene houder zichtbaar en het logo rechtsonder als laatste layer.</div>
+      <div class="help">V31 is afgestemd op het aangewezen voorbeeld: kaart groot en exact gecentreerd, kleine bovenrand, groene houder volledig zichtbaar onderaan en het logo rechtsonder over de afbeelding.</div>
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V29 – vaste voorbeeldcompositie – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V31 – vaste voorbeeldcompositie – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -239,7 +239,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Fotobatchbewerker V29 – vaste voorbeeldcompositie</strong>
+      <strong>Fotobatchbewerker V31 – vaste voorbeeldcompositie</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -253,7 +253,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="prepare" class="secondary">Foto's koppelen & verwerken</button>
     <button id="download" class="primary" disabled>Maak ZIP-bestand aan</button>
   </div>
-  <div id="status" class="status">Fotobatchbewerker V29 – vaste voorbeeldcompositie geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Fotobatchbewerker V31 – vaste voorbeeldcompositie geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -340,17 +340,19 @@ $('prepare').onclick=async()=>{
    setStatus(`0 van ${total} afbeeldingen verwerkt...`);
 
    for(const p of pairs){
-     // De achterkant is leidend voor positie en schaal.
-     // Daarna krijgt de voorkant exact dezelfde crop.
-     p.sharedCrop=await v29ExampleCropSpec(p.back || p.front);
+     // V30: voor- en achterkant worden afzonderlijk uitgelijnd,
+     // maar met exact dezelfde DOEL-compositie.
+     // Zo worden kleine verschuivingen tussen de twee foto's gecorrigeerd.
+     p.frontCrop=await v31TargetCropSpec(p.front);
+     p.backCrop=p.back ? await v31TargetCropSpec(p.back) : null;
 
-     p.processedFront=await render(p.front,'front',p.sharedCrop);
+     p.processedFront=await render(p.front,'front',p.frontCrop);
      done++;
      $('bar').style.width=(done/total*100)+'%';
      setStatus(`${done} van ${total} afbeeldingen verwerkt...`);
 
      if(p.back){
-       p.processedBack=await render(p.back,'back',p.sharedCrop);
+       p.processedBack=await render(p.back,'back',p.backCrop);
        done++;
        $('bar').style.width=(done/total*100)+'%';
        setStatus(`${done} van ${total} afbeeldingen verwerkt...`);
@@ -2057,6 +2059,154 @@ function applySubtleSharpen(canvas){
 }
 
 
+
+
+async function v31TargetCropSpec(file){
+  const img=await loadImage(file);
+
+  const pw=520;
+  const ph=Math.max(1,Math.round(img.height*pw/img.width));
+  const probe=document.createElement('canvas');
+  probe.width=pw; probe.height=ph;
+  const pctx=probe.getContext('2d',{willReadFrequently:true});
+  pctx.drawImage(img,0,0,pw,ph);
+  const data=pctx.getImageData(0,0,pw,ph).data;
+
+  // Zoek alleen in de onderste studiozone naar de GROTE, doorlopende groene houder.
+  // Achtergrondlogo's zijn veel kleiner en worden hierdoor genegeerd.
+  let best={len:0,x0:0,x1:0,y:0};
+
+  for(let y=Math.floor(ph*.62); y<Math.floor(ph*.94); y++){
+    let runStart=-1;
+    for(let x=0; x<=pw; x++){
+      let green=false;
+      if(x<pw){
+        const i=(y*pw+x)*4, r=data[i], g=data[i+1], b=data[i+2];
+        green=(g>62 && g>r*1.17 && g>b*1.08 && (g-r)>14);
+      }
+
+      if(green && runStart<0) runStart=x;
+      if((!green || x===pw) && runStart>=0){
+        const end=x-1;
+        const len=end-runStart+1;
+        if(len>best.len) best={len,x0:runStart,x1:end,y};
+        runStart=-1;
+      }
+    }
+  }
+
+  const scaleX=img.width/pw;
+  const scaleY=img.height/ph;
+
+  if(best.len > pw*.32){
+    // Breid vanaf de beste groene rij uit om de echte houderbreedte te pakken.
+    // Gebruik een smalle verticale band rond die rij.
+    let hx0=pw, hx1=-1, hy0=ph, hy1=-1, count=0;
+    const y0=Math.max(0,best.y-Math.round(ph*.035));
+    const y1=Math.min(ph-1,best.y+Math.round(ph*.045));
+
+    for(let y=y0;y<=y1;y++){
+      for(let x=Math.max(0,best.x0-Math.round(pw*.05)); x<=Math.min(pw-1,best.x1+Math.round(pw*.05)); x++){
+        const i=(y*pw+x)*4, r=data[i], g=data[i+1], b=data[i+2];
+        if(g>62 && g>r*1.17 && g>b*1.08 && (g-r)>14){
+          hx0=Math.min(hx0,x); hx1=Math.max(hx1,x);
+          hy0=Math.min(hy0,y); hy1=Math.max(hy1,y);
+          count++;
+        }
+      }
+    }
+
+    if(count>80 && hx1>hx0){
+      const holderLeft=hx0*scaleX;
+      const holderRight=(hx1+1)*scaleX;
+      const holderTop=hy0*scaleY;
+      const holderWidth=holderRight-holderLeft;
+      const holderCenter=(holderLeft+holderRight)/2;
+
+      // Exact afgestemd op jouw gewenste voorbeeld:
+      // - houder ≈ 73% van uitvoerbreedte
+      // - bovenkant houder ≈ 87% van uitvoerhoogte
+      // - kaart staat daardoor groot, centraal en met kleine bovenrand
+      let side=holderWidth/0.73;
+      side=Math.min(side,img.width,img.height);
+
+      let sx=holderCenter-side/2;
+      let sy=holderTop-side*0.87;
+
+      sx=Math.max(0,Math.min(sx,img.width-side));
+      sy=Math.max(0,Math.min(sy,img.height-side));
+
+      return {sx,sy,side};
+    }
+  }
+
+  // Fallback: zelfde visuele verhoudingen als het gewenste voorbeeld.
+  const side=Math.min(img.width,img.height)*0.80;
+  return {
+    sx:(img.width-side)/2,
+    sy:Math.max(0,(img.height-side)/2-side*.09),
+    side
+  };
+}
+
+async function v30PreciseCropSpec(file){
+  const img=await loadImage(file);
+
+  // Analyseer verkleind voor snelheid.
+  const pw=500;
+  const ph=Math.max(1,Math.round(img.height*pw/img.width));
+  const probe=document.createElement('canvas');
+  probe.width=pw;probe.height=ph;
+  const pctx=probe.getContext('2d',{willReadFrequently:true});
+  pctx.drawImage(img,0,0,pw,ph);
+  const data=pctx.getImageData(0,0,pw,ph).data;
+
+  // 1) Groene houder detecteren, alleen onderin.
+  let hx0=pw,hx1=-1,hy0=ph,hy1=-1,hcount=0;
+  for(let y=Math.floor(ph*.60);y<Math.floor(ph*.92);y++){
+    for(let x=0;x<pw;x++){
+      const i=(y*pw+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+      if(g>65 && g>r*1.18 && g>b*1.08 && (g-r)>15){
+        hx0=Math.min(hx0,x);hx1=Math.max(hx1,x);
+        hy0=Math.min(hy0,y);hy1=Math.max(hy1,y);hcount++;
+      }
+    }
+  }
+
+  const scaleX=img.width/pw, scaleY=img.height/ph;
+
+  if(hcount>120 && hx1>hx0){
+    const holderLeft=hx0*scaleX;
+    const holderRight=(hx1+1)*scaleX;
+    const holderTop=hy0*scaleY;
+    const holderWidth=holderRight-holderLeft;
+    const holderCenter=(holderLeft+holderRight)/2;
+
+    // V30 doelcompositie gebaseerd op het voorbeeld:
+    // kaart ongeveer 61-62% van de vierkante output breed,
+    // houder circa 72-74% breed, kleine bovenrand.
+    // We bepalen per foto apart het centrum zodat kleine cameraverschillen niet doorwerken.
+    let side=holderWidth/0.73;
+    side=Math.min(side,img.width,img.height);
+
+    let sx=holderCenter-side/2;
+    let sy=holderTop-side*0.872;
+
+    sx=Math.max(0,Math.min(sx,img.width-side));
+    sy=Math.max(0,Math.min(sy,img.height-side));
+
+    return {sx,sy,side};
+  }
+
+  // Fallback.
+  const side=Math.min(img.width,img.height)*0.80;
+  return {
+    sx:(img.width-side)/2,
+    sy:Math.max(0,(img.height-side)/2-side*.085),
+    side
+  };
+}
+
 async function v29ExampleCropSpec(file){
   const img=await loadImage(file);
 
@@ -2134,7 +2284,7 @@ async function render(file, kind='front', sharedCrop=null){
  const mode=$('cropMode').value;
 
  if(mode==='studio' || mode==='auto'){
-   const spec=sharedCrop || await v29ExampleCropSpec(file);
+   const spec=sharedCrop || await v31TargetCropSpec(file);
    const sx=Math.max(0,Math.min(spec.sx,img.width-spec.side));
    const sy=Math.max(0,Math.min(spec.sy,img.height-spec.side));
 
@@ -2203,13 +2353,13 @@ $('download').onclick=async()=>{
      const base=`${formatNum(p.num)}`;
      const prefix=zipLayout==='folders' ? `${folderName}/` : '';
 
-     const frontBlob=p.processedFront || await render(p.front,'front',p.sharedCrop||null);
+     const frontBlob=p.processedFront || await render(p.front,'front',p.frontCrop||null);
      zip.file(`${prefix}${base} - Voorkant.${ext}`,frontBlob);
      done++;
      $('bar').style.width=(done/total*100)+'%';
 
      if(p.back){
-       const backBlob=p.processedBack || await render(p.back,'back',p.sharedCrop||null);
+       const backBlob=p.processedBack || await render(p.back,'back',p.backCrop||null);
        zip.file(`${prefix}${base} - Achterkant.${ext}`,backBlob);
        done++;
        $('bar').style.width=(done/total*100)+'%';
