@@ -1,0 +1,17 @@
+ZamexCards Fotobatchbewerker V28
+
+Belangrijkste fix:
+De voorkant werd soms verkeerd gecropt doordat de groene kleur in het kaart-artwork
+werd aangezien voor de groene ZamexCards-houder.
+
+V28 lost dit zo op:
+- per kaartpaar wordt één crop berekend;
+- de ACHTERKANT is leidend voor positie, zoom en centrering;
+- exact dezelfde crop wordt daarna op de VOORKANT toegepast;
+- daardoor moeten voor- en achterkant dezelfde grootte, hoogte en centrering krijgen;
+- houderdetectie kijkt bovendien alleen nog in het onderste deel van de foto;
+- kleuren blijven standaard onaangetast;
+- logo blijft de laatste layer over de foto/kaart.
+
+Workflow blijft:
+Foto's koppelen & verwerken -> Maak ZIP-bestand aan -> automatische download.
