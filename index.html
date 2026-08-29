@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V24 – directe verwerking</title>
+<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V25 – gecentreerde webshopfoto</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -211,20 +211,20 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="row two" style="margin-top:14px">
     <div>
       <label>Kaart uitsnede</label>
-      <select id="cropMode"><option value="studio" selected>ZamexCards studio – kaart hoger / meer houder (aanbevolen)</option><option value="auto">Automatisch centreren op de kaart</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
-      <div class="help">De vaste ZamexCards studio-uitsnede is afgestemd op jouw fotostandaard. De kaart staat iets hoger zodat meer van de groene houder zichtbaar blijft.</div>
+      <select id="cropMode"><option value="studio" selected>ZamexCards studio – kaart exact gecentreerd (aanbevolen)</option><option value="auto">Automatisch centreren op de kaart</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
+      <div class="help">De kaart wordt op basis van de groene houder horizontaal gecentreerd en verticaal rustiger in het vierkante eindbeeld geplaatst.</div>
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V24 – directe verwerking – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V25 – gecentreerde webshopfoto – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
   <div class="row two" style="margin-top:14px">
     <div>
       <label>Beeldweergave</label>
-      <select id="look"><option value="natural" selected>Natuurlijk helder (aanbevolen)</option><option value="original">Exact origineel – geen correctie</option></select>
-      <div class="help">Natuurlijk helder gebruikt alleen een heel lichte helderheids- en contrastcorrectie, zonder extra verzadiging.</div>
+      <select id="look"><option value="original" selected>Exact origineel – kleuren niet aanpassen (aanbevolen)</option><option value="natural">Licht helder/contrast</option></select>
+      <div class="help">Standaard worden helderheid, contrast, verzadiging en kleur niet aangepast. Alleen de geometrie en optionele subtiele verscherping worden toegepast.</div>
     </div>
     <div>
       <label>Scherpte</label>
@@ -232,14 +232,14 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
       <div class="help">Subtiele verscherping helpt tekst en kaartranden zonder de foto onnatuurlijk te maken.</div>
     </div>
   </div>
-  <div class="status ok" style="margin-top:14px"><strong>Webshopkwaliteit:</strong> geen sterke kleurfilters. De standaardinstelling houdt de foto natuurlijk, maakt hem slechts licht helderder en exporteert als verliesvrije PNG op 1500 × 1500.</div>
+  <div class="status ok" style="margin-top:14px"><strong>Webshopkwaliteit:</strong> standaard geen kleur-, verzadigings-, helderheids- of contrastcorrectie. PNG blijft verliesvrij; JPG wordt op maximale kwaliteit geëxporteerd. Het logo wordt als laatste laag over de afbeelding geplaatst.</div>
 </section>
 
 <section class="panel">
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Fotobatchbewerker V24 – directe verwerking</strong>
+      <strong>Fotobatchbewerker V25 – gecentreerde webshopfoto</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -253,7 +253,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="prepare" class="secondary">Foto's koppelen & verwerken</button>
     <button id="download" class="primary" disabled>Maak ZIP-bestand aan</button>
   </div>
-  <div id="status" class="status">Fotobatchbewerker V24 – directe verwerking geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Fotobatchbewerker V25 – gecentreerde webshopfoto geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -2057,55 +2057,89 @@ async function render(file, kind='front'){
  const OUT=Number($('resolution').value||1500);
  c.width=OUT;c.height=OUT;
  const ctx=c.getContext('2d',{alpha:false,colorSpace:'srgb'});
- ctx.clearRect(0,0,OUT,OUT);ctx.fillStyle='#fff';ctx.fillRect(0,0,OUT,OUT);
- ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
- ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
- const look=$('look')?.value||'natural';
- // Geen verzadigingsfilter. Alleen een zeer milde helderheid/contrast boost in de aanbevolen stand.
- ctx.filter = look==='natural' ? 'brightness(1.035) contrast(1.02)' : 'none';
- const mode=$('cropMode').value; let sx=0,sy=0,sw=img.width,sh=img.height;
- if(mode==='auto'){
-   const detected=await detectCardCrop(img);
-   if(detected){
-     sx=detected.x;sy=detected.y;sw=sh=detected.side;
-     // Zet het kader heel licht naar beneden: daardoor komt de kaart hoger in het eindbeeld
-     // en blijft meer van de groene houder zichtbaar.
-     sy=Math.min(img.height-sh, sy + sh*0.018);
-   } else {
-     const refW=1153, refH=2048;
-     const cfg = kind==='back'
-       ? {x:221.68/refW, y:506.92/refH, side:694.49/refW}
-       : {x:227.60/refW, y:524.40/refH, side:671.32/refW};
-     const side=Math.min(img.width*cfg.side,img.height); sx=img.width*cfg.x; sy=img.height*cfg.y + side*0.025; sw=sh=side;
-     sx=Math.max(0,Math.min(sx,img.width-sw)); sy=Math.max(0,Math.min(sy,img.height-sh));
+ ctx.clearRect(0,0,OUT,OUT);
+ ctx.fillStyle='#fff';ctx.fillRect(0,0,OUT,OUT);
+ ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
+ ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+
+ // V25: standaard GEEN kleur-/helderheids-/contrastcorrectie.
+ const look=$('look')?.value||'original';
+ ctx.filter=look==='natural' ? 'brightness(1.025) contrast(1.015)' : 'none';
+
+ const mode=$('cropMode').value;
+ let sx=0,sy=0,sw=img.width,sh=img.height;
+
+ if(mode==='studio' || mode==='auto'){
+   // Gebruik de groene houder als betrouwbaar ankerpunt.
+   const card=studioCardCropCanvas(img);
+   // Het bestaande kaartcanvas is 630x880 en bevat de volledige kaart.
+   // Voor de uiteindelijke webshopfoto willen we echter ook de houder en achtergrond houden.
+   // Leid de positie opnieuw uit de groene houder af via dezelfde detector.
+   const pw=300, ph=Math.max(1,Math.round(img.height*pw/img.width));
+   const probe=document.createElement('canvas');probe.width=pw;probe.height=ph;
+   const pctx=probe.getContext('2d',{willReadFrequently:true});
+   pctx.drawImage(img,0,0,pw,ph);
+   const d=pctx.getImageData(0,0,pw,ph).data;
+   let minX=pw,maxX=0,minY=ph,maxY=0,count=0;
+   for(let y=Math.floor(ph*.38);y<Math.floor(ph*.72);y++){
+     for(let x=0;x<pw;x++){
+       const i=(y*pw+x)*4,r=d[i],g=d[i+1],b=d[i+2];
+       if(g>70&&g>r*1.22&&g>b*1.12&&(g-r)>18){
+         minX=Math.min(minX,x);maxX=Math.max(maxX,x);
+         minY=Math.min(minY,y);maxY=Math.max(maxY,y);count++;
+       }
+     }
    }
+
+   const side=Math.min(img.width,img.height);
+   sw=sh=side;
+   if(count>80 && maxX>minX){
+     const scale=img.width/pw;
+     const holderCenter=((minX+maxX+1)/2)*scale;
+     // Horizontaal: kaart/houder exact naar het midden van het vierkant.
+     sx=holderCenter-side/2;
+     // Verticaal: behoud vergelijkbare compositie maar iets meer lucht boven/onder.
+     const holderTop=minY*(img.height/ph);
+     sy=holderTop-side*.72;
+   }else{
+     sx=(img.width-side)/2;
+     sy=(img.height-side)/2;
+   }
+   sx=Math.max(0,Math.min(sx,img.width-side));
+   sy=Math.max(0,Math.min(sy,img.height-side));
    ctx.drawImage(img,sx,sy,sw,sh,0,0,OUT,OUT);
- } else if(mode==='studio'){
-   const refW=1153, refH=2048;
-   const cfg = kind==='back'
-     ? {x:221.68/refW, y:506.92/refH, side:694.49/refW}
-     : {x:227.60/refW, y:524.40/refH, side:671.32/refW};
-   const side=Math.min(img.width*cfg.side, img.height);
-   sx=img.width*cfg.x; sy=img.height*cfg.y + side*0.025; sw=sh=side;
-   sx=Math.max(0,Math.min(sx,img.width-sw)); sy=Math.max(0,Math.min(sy,img.height-sh));
+ }else if(mode==='center'){
+   const side=Math.min(img.width,img.height);
+   sx=(img.width-side)/2;sy=(img.height-side)/2;sw=sh=side;
    ctx.drawImage(img,sx,sy,sw,sh,0,0,OUT,OUT);
- } else if(mode==='center'){
-   const side=Math.min(img.width,img.height); sx=(img.width-side)/2; sy=(img.height-side)/2; sw=sh=side; ctx.drawImage(img,sx,sy,sw,sh,0,0,OUT,OUT);
- } else {
-   const scale=Math.min(OUT/img.width,OUT/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(OUT-w)/2,(OUT-h)/2,w,h)
+ }else{
+   const scale=Math.min(OUT/img.width,OUT/img.height);
+   const w=img.width*scale,h=img.height*scale;
+   ctx.drawImage(img,(OUT-w)/2,(OUT-h)/2,w,h);
  }
  ctx.filter='none';
+
+ // Alleen subtiele luminantie-verscherping; geen kleurwijziging.
  if($('sharpness')?.value==='subtle') applySubtleSharpen(c);
+
+ // V25: watermerk is de allerlaatste compositielaag.
+ // Daardoor mag het logo bewust over de kaart heen liggen.
  if(watermarkImg){
-   const pct=Number($('wmSize').value||18)/100;
-   const w=OUT*pct; const h=w*(watermarkImg.height/watermarkImg.width);
+   const pct=Number($('wmSize').value||28)/100;
+   const w=OUT*pct;
+   const h=w*(watermarkImg.height/watermarkImg.width);
    const scale=OUT/1000;
    const x=OUT-w-Number($('wmRight').value||20)*scale;
    const y=OUT-h-Number($('wmBottom').value||20)*scale;
-   ctx.save();ctx.globalAlpha=Number($('wmOpacity').value||35)/100;ctx.drawImage(watermarkImg,x,y,w,h);ctx.restore();
+   ctx.save();
+   ctx.globalCompositeOperation='source-over';
+   ctx.globalAlpha=Number($('wmOpacity').value||35)/100;
+   ctx.drawImage(watermarkImg,x,y,w,h);
+   ctx.restore();
  }
+
  const fmt=$('format').value;
- return new Promise(r=>c.toBlob(r,fmt==='jpg'?'image/jpeg':'image/png',0.98));
+ return new Promise(r=>c.toBlob(r,fmt==='jpg'?'image/jpeg':'image/png',fmt==='jpg'?0.995:1));
 }
 $('download').onclick=async()=>{
  if(!pairs.length){

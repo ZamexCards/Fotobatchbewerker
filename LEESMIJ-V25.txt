@@ -1,0 +1,13 @@
+ZamexCards Fotobatchbewerker V25
+
+Aanpassingen:
+- Kaart/houder wordt horizontaal beter gecentreerd in het vierkante eindbeeld.
+- Rustigere verticale positionering.
+- Standaard géén kleur-, verzadigings-, helderheids- of contrastaanpassing.
+- Subtiele verscherping blijft mogelijk voor strakke tekst/kaartranden.
+- PNG export blijft verliesvrij.
+- JPG export staat op zeer hoge kwaliteit.
+- Eigen logo/watermerk wordt als allerlaatste layer getekend.
+- Daardoor mag het logo rechts onderin bewust over de kaart heen vallen.
+- Standaard logobreedte blijft 28%.
+- Workflow blijft: Foto's koppelen & verwerken -> Maak ZIP-bestand aan -> automatische download.
