@@ -1,0 +1,22 @@
+ZamexCards Fotobatchbewerker V22
+
+Fix voor verkeerd herkende namen zoals:
+- Dragonite V terwijl het Charizard V is
+- Moltres ex terwijl het Charizard ex is
+- Gallade ex terwijl het Mega Gardevoir ex is
+
+Oorzaak:
+V21 accepteerde soms een CLIP-gok met zeer lage Pokémon-confidence (12-17%) omdat daarna alleen binnen die verkeerde soort naar kaartartwork werd gezocht.
+
+V22:
+- Leest eerst het kaartnummer.
+- Zoekt ALLE TCGdex-kaarten met dat nummer in EN/JA/KO/ZH.
+- Vergelijkt de echte kaartafbeeldingen met de geüploade kaart.
+- Alleen bij sterke artworkmatch wordt de databasennaam gebruikt.
+- CLIP is pas fallback.
+- CLIP moet nu ook een minimale eigen confidence hebben.
+- De artworkdrempels voor CLIP zijn verhoogd.
+
+Engelse en Japanse V21-herkenning blijft verder behouden.
+Bestandsnamen blijven nummer + kaartnaam.
+Watermerkbreedte blijft standaard 28.
