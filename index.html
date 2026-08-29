@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V31 – vaste voorbeeldcompositie</title>
+<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V32 – exacte voorbeeldcompositie</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -212,11 +212,11 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <div>
       <label>Kaart uitsnede</label>
       <select id="cropMode"><option value="studio" selected>ZamexCards studio – kaart exact gecentreerd (aanbevolen)</option><option value="auto">Automatisch centreren op de kaart</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
-      <div class="help">V31 is afgestemd op het aangewezen voorbeeld: kaart groot en exact gecentreerd, kleine bovenrand, groene houder volledig zichtbaar onderaan en het logo rechtsonder over de afbeelding.</div>
+      <div class="help">V32 is rechtstreeks gekalibreerd op het aangewezen voorbeeld: dezelfde grote kaartweergave, dezelfde hogere positie, dezelfde centrering en het logo rechtsonder als losse bovenste layer.</div>
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V31 – vaste voorbeeldcompositie – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V32 – exacte voorbeeldcompositie – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -239,7 +239,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Fotobatchbewerker V31 – vaste voorbeeldcompositie</strong>
+      <strong>Fotobatchbewerker V32 – exacte voorbeeldcompositie</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -253,7 +253,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="prepare" class="secondary">Foto's koppelen & verwerken</button>
     <button id="download" class="primary" disabled>Maak ZIP-bestand aan</button>
   </div>
-  <div id="status" class="status">Fotobatchbewerker V31 – vaste voorbeeldcompositie geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Fotobatchbewerker V32 – exacte voorbeeldcompositie geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -343,8 +343,8 @@ $('prepare').onclick=async()=>{
      // V30: voor- en achterkant worden afzonderlijk uitgelijnd,
      // maar met exact dezelfde DOEL-compositie.
      // Zo worden kleine verschuivingen tussen de twee foto's gecorrigeerd.
-     p.frontCrop=await v31TargetCropSpec(p.front);
-     p.backCrop=p.back ? await v31TargetCropSpec(p.back) : null;
+     p.frontCrop=await v32ExactExampleCropSpec(p.front);
+     p.backCrop=p.back ? await v32ExactExampleCropSpec(p.back) : null;
 
      p.processedFront=await render(p.front,'front',p.frontCrop);
      done++;
@@ -2061,6 +2061,30 @@ function applySubtleSharpen(canvas){
 
 
 
+
+async function v32ExactExampleCropSpec(file){
+  // Eerst de stabiele V31-detectie uitvoeren.
+  const base=await v31TargetCropSpec(file);
+
+  // Exacte kalibratie op het aangewezen voorbeeld:
+  // huidige kaartbreedte ≈ 690 px, gewenst ≈ 930 px op 1500x1500.
+  // Daarom verkleinen we het bronvenster naar 74,19%.
+  const zoomCrop=690/930; // 0.741935...
+
+  // In het gewenste voorbeeld moet de kaart bovendien iets naar rechts
+  // en duidelijk hoger in het vierkante eindbeeld komen.
+  const newSide=base.side*zoomCrop;
+  let sx=base.sx + base.side*0.0622;
+  let sy=base.sy + base.side*0.0799;
+
+  // Binnen de bronafbeelding houden.
+  const img=await loadImage(file);
+  sx=Math.max(0,Math.min(sx,img.width-newSide));
+  sy=Math.max(0,Math.min(sy,img.height-newSide));
+
+  return {sx,sy,side:newSide};
+}
+
 async function v31TargetCropSpec(file){
   const img=await loadImage(file);
 
@@ -2284,7 +2308,7 @@ async function render(file, kind='front', sharedCrop=null){
  const mode=$('cropMode').value;
 
  if(mode==='studio' || mode==='auto'){
-   const spec=sharedCrop || await v31TargetCropSpec(file);
+   const spec=sharedCrop || await v32ExactExampleCropSpec(file);
    const sx=Math.max(0,Math.min(spec.sx,img.width-spec.side));
    const sy=Math.max(0,Math.min(spec.sy,img.height-spec.side));
 

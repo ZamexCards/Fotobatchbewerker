@@ -1,0 +1,19 @@
+ZamexCards Fotobatchbewerker V32
+
+Deze versie is rechtstreeks gekalibreerd op de twee aangeleverde vergelijkingsafbeeldingen:
+
+Huidige uitvoer:
+- kaartbreedte ongeveer 690 px op 1500x1500
+
+Gewenste uitvoer:
+- kaartbreedte ongeveer 930 px op 1500x1500
+
+V32 past daarom de compositie met een vaste gekalibreerde factor aan:
+- kaart circa 34,8% groter dan in V31;
+- kaart hoger in beeld;
+- kaart horizontaal naar de gewenste voorbeeldpositie;
+- groene houder blijft onderaan zichtbaar;
+- logo wordt NA de crop als eigen layer geplaatst en wordt dus niet mee uitvergroot;
+- geen kleurcorrectie toegepast.
+
+Upload index.html naar GitHub Pages.
