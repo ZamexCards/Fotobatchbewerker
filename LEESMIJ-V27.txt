@@ -1,0 +1,21 @@
+ZamexCards Fotobatchbewerker V27
+
+Deze versie corrigeert specifiek de compositie.
+
+Doel:
+- dezelfde grote kaartweergave als het voorbeeld dat als perfect is aangewezen;
+- kaart exact horizontaal in het midden;
+- kleine bovenrand;
+- groene ZamexCards-houder laag in beeld;
+- geen verre/kleine kaart meer;
+- geen automatische kleurcorrectie;
+- subtiele verscherping optioneel;
+- eigen logo als laatste layer over de foto/kaart.
+
+Techniek:
+De groene houder wordt gebruikt om het midden en de schaal van de uitsnede te bepalen.
+De uiteindelijke vierkante crop is ongeveer 1,33x de breedte van de houder.
+Daardoor vult de kaart het beeld veel beter.
+
+Workflow:
+Foto's koppelen & verwerken -> Maak ZIP-bestand aan -> automatische download.
