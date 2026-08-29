@@ -1,0 +1,18 @@
+ZamexCards Fotobatchbewerker V29
+
+Doel van deze versie:
+De gemaakte afbeeldingen moeten overeenkomen met het aangewezen voorbeeld:
+- kaart groot in beeld;
+- kaart horizontaal gecentreerd;
+- kleine bovenrand;
+- groene ZamexCards-houder zichtbaar onderaan;
+- logo rechtsonder als aparte laatste layer;
+- kleuren standaard niet aangepast.
+
+Belangrijk:
+De achterkant van elk kaartpaar bepaalt de crop/zoom/positie.
+Diezelfde crop wordt exact op de voorkant toegepast.
+Hierdoor kan groen of opvallend artwork op de voorkant de positionering niet meer verstoren.
+
+Workflow:
+Foto's koppelen & verwerken -> Maak ZIP-bestand aan -> automatische download.

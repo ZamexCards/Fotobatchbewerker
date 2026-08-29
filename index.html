@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V28 – gelijke voor/achter-crop</title>
+<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V29 – vaste voorbeeldcompositie</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -212,11 +212,11 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <div>
       <label>Kaart uitsnede</label>
       <select id="cropMode"><option value="studio" selected>ZamexCards studio – kaart exact gecentreerd (aanbevolen)</option><option value="auto">Automatisch centreren op de kaart</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
-      <div class="help">Voor- en achterkant gebruiken nu exact dezelfde crop. De achterkant bepaalt de positie en schaal, zodat groen of opvallend artwork op de voorkant de uitsnede niet meer kan verstoren.</div>
+      <div class="help">De uitvoer volgt nu de gewenste voorbeeldcompositie: kaart groot en gecentreerd, kleine bovenrand, groene houder zichtbaar en het logo rechtsonder als laatste layer.</div>
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V28 – gelijke voor/achter-crop – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V29 – vaste voorbeeldcompositie – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -239,7 +239,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Fotobatchbewerker V28 – gelijke voor/achter-crop</strong>
+      <strong>Fotobatchbewerker V29 – vaste voorbeeldcompositie</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -253,7 +253,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="prepare" class="secondary">Foto's koppelen & verwerken</button>
     <button id="download" class="primary" disabled>Maak ZIP-bestand aan</button>
   </div>
-  <div id="status" class="status">Fotobatchbewerker V28 – gelijke voor/achter-crop geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Fotobatchbewerker V29 – vaste voorbeeldcompositie geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -340,17 +340,17 @@ $('prepare').onclick=async()=>{
    setStatus(`0 van ${total} afbeeldingen verwerkt...`);
 
    for(const p of pairs){
-     // V28: bepaal één crop per kaartpaar.
-     // Achterkant is leidend, omdat daarop geen kaart-artwork de groene houderdetectie verstoort.
-     p.cropSpec=await v28StudioCropSpec(p.back || p.front);
+     // De achterkant is leidend voor positie en schaal.
+     // Daarna krijgt de voorkant exact dezelfde crop.
+     p.sharedCrop=await v29ExampleCropSpec(p.back || p.front);
 
-     p.processedFront=await render(p.front,'front',p.cropSpec);
+     p.processedFront=await render(p.front,'front',p.sharedCrop);
      done++;
      $('bar').style.width=(done/total*100)+'%';
      setStatus(`${done} van ${total} afbeeldingen verwerkt...`);
 
      if(p.back){
-       p.processedBack=await render(p.back,'back',p.cropSpec);
+       p.processedBack=await render(p.back,'back',p.sharedCrop);
        done++;
        $('bar').style.width=(done/total*100)+'%';
        setStatus(`${done} van ${total} afbeeldingen verwerkt...`);
@@ -2057,11 +2057,9 @@ function applySubtleSharpen(canvas){
 }
 
 
-async function v28StudioCropSpec(file){
+async function v29ExampleCropSpec(file){
   const img=await loadImage(file);
 
-  // Alleen de ONDERSTE zone onderzoeken.
-  // Zo kan groen artwork op de voorkant de houderdetectie niet meer verstoren.
   const pw=420;
   const ph=Math.max(1,Math.round(img.height*pw/img.width));
   const probe=document.createElement('canvas');
@@ -2072,13 +2070,12 @@ async function v28StudioCropSpec(file){
   const data=pctx.getImageData(0,0,pw,ph).data;
   let minX=pw,maxX=-1,minY=ph,maxY=-1,count=0;
 
-  // De houder staat in jouw studiofoto's onder de kaart.
-  // Detecteer daarom bewust alleen vanaf ca. 67% van de hoogte.
-  for(let y=Math.floor(ph*.64);y<Math.floor(ph*.91);y++){
+  // Exact dezelfde detectie als V27.
+  for(let y=Math.floor(ph*.38);y<Math.floor(ph*.82);y++){
     for(let x=0;x<pw;x++){
       const i=(y*pw+x)*4;
       const r=data[i],g=data[i+1],b=data[i+2];
-      if(g>68 && g>r*1.20 && g>b*1.10 && (g-r)>17){
+      if(g>65 && g>r*1.20 && g>b*1.10 && (g-r)>16){
         minX=Math.min(minX,x); maxX=Math.max(maxX,x);
         minY=Math.min(minY,y); maxY=Math.max(maxY,y);
         count++;
@@ -2086,7 +2083,9 @@ async function v28StudioCropSpec(file){
     }
   }
 
-  if(count>100 && maxX>minX){
+  let sx,sy,side;
+
+  if(count>120 && maxX>minX){
     const scaleX=img.width/pw;
     const scaleY=img.height/ph;
     const holderLeft=minX*scaleX;
@@ -2095,30 +2094,27 @@ async function v28StudioCropSpec(file){
     const holderWidth=holderRight-holderLeft;
     const holderCenter=(holderLeft+holderRight)/2;
 
-    // Zelfde gewenste grote kaartcompositie als de perfecte achterkant.
-    let side=holderWidth/0.75;
+    // Compositie afgestemd op het gewenste voorbeeld:
+    // kaart groot, kleine bovenrand, houder duidelijk zichtbaar.
+    side=holderWidth/0.72;
     side=Math.min(side,img.width,img.height);
 
-    let sx=holderCenter-side/2;
-    let sy=holderTop-side*0.89;
+    sx=holderCenter-side/2;
+    sy=holderTop-side*0.865;
 
     sx=Math.max(0,Math.min(sx,img.width-side));
     sy=Math.max(0,Math.min(sy,img.height-side));
-
-    return {sx,sy,side,source:'houder'};
+  }else{
+    // Nette fallback met vergelijkbare close-up.
+    side=Math.min(img.width,img.height)*0.80;
+    sx=(img.width-side)/2;
+    sy=Math.max(0,(img.height-side)/2-side*.08);
   }
 
-  // Betrouwbare fallback: vaste centrale close crop.
-  const side=Math.min(img.width,img.height)*0.78;
-  return {
-    sx:(img.width-side)/2,
-    sy:Math.max(0,(img.height-side)/2-side*.10),
-    side,
-    source:'fallback'
-  };
+  return {sx,sy,side};
 }
 
-async function render(file, kind='front', cropSpec=null){
+async function render(file, kind='front', sharedCrop=null){
  const img=await loadImage(file), c=$('canvas');
  const OUT=Number($('resolution').value||1500);
  c.width=OUT;c.height=OUT;
@@ -2131,19 +2127,17 @@ async function render(file, kind='front', cropSpec=null){
  ctx.imageSmoothingEnabled=true;
  ctx.imageSmoothingQuality='high';
 
- // Geen automatische kleurwijziging.
+ // Kleuren standaard exact origineel.
  const look=$('look')?.value||'original';
  ctx.filter=look==='natural' ? 'brightness(1.025) contrast(1.015)' : 'none';
 
  const mode=$('cropMode').value;
 
  if(mode==='studio' || mode==='auto'){
-   // V28: VOOR- en ACHTERKANT gebruiken exact dezelfde crop-geometrie.
-   // De crop wordt per kaart bij voorkeur uit de achterkant bepaald,
-   // omdat artwork op de voorkant (zoals groen bij Gardevoir) de detectie kan misleiden.
-   const spec=cropSpec || await v28StudioCropSpec(file);
+   const spec=sharedCrop || await v29ExampleCropSpec(file);
    const sx=Math.max(0,Math.min(spec.sx,img.width-spec.side));
    const sy=Math.max(0,Math.min(spec.sy,img.height-spec.side));
+
    ctx.drawImage(img,sx,sy,spec.side,spec.side,0,0,OUT,OUT);
 
  }else if(mode==='center'){
@@ -2160,9 +2154,10 @@ async function render(file, kind='front', cropSpec=null){
 
  ctx.filter='none';
 
+ // Alleen lichte scherpte; geen kleurverandering.
  if($('sharpness')?.value==='subtle') applySubtleSharpen(c);
 
- // Logo altijd als laatste layer.
+ // Logo als allerlaatste layer, rechtsonder en bewust over kaart/houder.
  if(watermarkImg){
    const pct=Number($('wmSize').value||28)/100;
    const w=OUT*pct;
@@ -2208,13 +2203,13 @@ $('download').onclick=async()=>{
      const base=`${formatNum(p.num)}`;
      const prefix=zipLayout==='folders' ? `${folderName}/` : '';
 
-     const frontBlob=p.processedFront || await render(p.front,'front',p.cropSpec||null);
+     const frontBlob=p.processedFront || await render(p.front,'front',p.sharedCrop||null);
      zip.file(`${prefix}${base} - Voorkant.${ext}`,frontBlob);
      done++;
      $('bar').style.width=(done/total*100)+'%';
 
      if(p.back){
-       const backBlob=p.processedBack || await render(p.back,'back',p.cropSpec||null);
+       const backBlob=p.processedBack || await render(p.back,'back',p.sharedCrop||null);
        zip.file(`${prefix}${base} - Achterkant.${ext}`,backBlob);
        done++;
        $('bar').style.width=(done/total*100)+'%';
