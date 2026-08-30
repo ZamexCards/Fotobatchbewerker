@@ -343,8 +343,8 @@ $('prepare').onclick=async()=>{
      // V30: voor- en achterkant worden afzonderlijk uitgelijnd,
      // maar met exact dezelfde DOEL-compositie.
      // Zo worden kleine verschuivingen tussen de twee foto's gecorrigeerd.
-     p.frontCrop=await v37FastAlignSpec(p.front);
-     p.backCrop=p.back ? await v37FastAlignSpec(p.back) : null;
+     p.frontCrop=await v38SafeAlignSpec(p.front);
+     p.backCrop=p.back ? await v38SafeAlignSpec(p.back) : null;
 
      p.processedFront=await render(p.front,'front',p.frontCrop);
      done++;
