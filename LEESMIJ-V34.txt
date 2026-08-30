@@ -1,0 +1,9 @@
+ZamexCards Fotobatchbewerker V34
+
+V34 normaliseert per afzonderlijke foto automatisch:
+- kaartpositie
+- kaartgrootte
+- kleine scheefstand/rotatie
+
+Daarna wordt iedere kaart naar dezelfde vaste doelpositie als afbeelding 01 gebracht.
+Originele kleuren blijven behouden en het logo blijft de laatste layer.
