@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V35 – automatische perspectief-uitlijning</title>
+<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V36 – snelle automatische uitlijning</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -212,11 +212,11 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <div>
       <label>Kaart uitsnede</label>
       <select id="cropMode"><option value="studio" selected>ZamexCards studio – kaart exact gecentreerd (aanbevolen)</option><option value="auto">Automatisch centreren op de kaart</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
-      <div class="help">V35 detecteert nu per foto de vier kaart-hoeken en corrigeert automatisch positie, grootte, rotatie én perspectief. Daarna worden de kaart-hoeken altijd op exact dezelfde positie gezet als in afbeelding 01.</div>
+      <div class="help">V36 gebruikt V33 als vaste veilige basis en corrigeert per foto alleen kleine verschillen in links/rechts, hoogte en schaal. Dit gebeurt volledig lokaal met lichte Canvas-berekeningen, zonder OpenCV.</div>
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V35 – automatische perspectief-uitlijning – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V36 – snelle automatische uitlijning – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -239,7 +239,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Fotobatchbewerker V35 – automatische perspectief-uitlijning</strong>
+      <strong>Fotobatchbewerker V36 – snelle automatische uitlijning</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -253,7 +253,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="prepare" class="secondary">Foto's koppelen & verwerken</button>
     <button id="download" class="primary" disabled>Maak ZIP-bestand aan</button>
   </div>
-  <div id="status" class="status">Fotobatchbewerker V35 – automatische perspectief-uitlijning geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Fotobatchbewerker V36 – snelle automatische uitlijning geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -340,18 +340,19 @@ $('prepare').onclick=async()=>{
    setStatus(`0 van ${total} afbeeldingen verwerkt...`);
 
    for(const p of pairs){
-     setStatus(`Kaart ${pairs.indexOf(p)+1} van ${pairs.length}: positie en perspectief bepalen...`);
+     // V30: voor- en achterkant worden afzonderlijk uitgelijnd,
+     // maar met exact dezelfde DOEL-compositie.
+     // Zo worden kleine verschuivingen tussen de twee foto's gecorrigeerd.
+     p.frontCrop=await v36FastAlignSpec(p.front);
+     p.backCrop=p.back ? await v36FastAlignSpec(p.back) : null;
 
-     p.frontGeometry=await v35DetectCardCorners(p.front);
-     p.backGeometry=p.back ? await v35DetectCardCorners(p.back) : null;
-
-     p.processedFront=await render(p.front,'front',p.frontGeometry);
+     p.processedFront=await render(p.front,'front',p.frontCrop);
      done++;
      $('bar').style.width=(done/total*100)+'%';
      setStatus(`${done} van ${total} afbeeldingen verwerkt...`);
 
      if(p.back){
-       p.processedBack=await render(p.back,'back',p.backGeometry);
+       p.processedBack=await render(p.back,'back',p.backCrop);
        done++;
        $('bar').style.width=(done/total*100)+'%';
        setStatus(`${done} van ${total} afbeeldingen verwerkt...`);
@@ -2063,235 +2064,109 @@ function applySubtleSharpen(canvas){
 
 
 
-let V35_CV_PROMISE=null;
-
-function v35EnsureOpenCV(){
-  if(window.cv && window.cv.Mat)return Promise.resolve(window.cv);
-  if(V35_CV_PROMISE)return V35_CV_PROMISE;
-
-  V35_CV_PROMISE=new Promise((resolve,reject)=>{
-    const existing=document.querySelector('script[data-v35-opencv]');
-    if(!existing){
-      const s=document.createElement('script');
-      s.src='https://docs.opencv.org/4.x/opencv.js';
-      s.async=true;
-      s.dataset.v35Opencv='1';
-      s.onerror=()=>reject(new Error('OpenCV kon niet worden geladen'));
-      document.head.appendChild(s);
-    }
-
-    const started=Date.now();
-    const poll=()=>{
-      if(window.cv && window.cv.Mat){
-        // Sommige builds zijn direct klaar, andere geven een Promise terug.
-        if(window.cv instanceof Promise){
-          window.cv.then(c=>resolve(c)).catch(reject);
-        }else{
-          resolve(window.cv);
-        }
-        return;
-      }
-      if(Date.now()-started>30000){
-        reject(new Error('OpenCV laden duurde te lang'));
-        return;
-      }
-      setTimeout(poll,100);
-    };
-    poll();
-  });
-  return V35_CV_PROMISE;
-}
-
-function v35OrderCorners(points){
-  // points: [{x,y}, ...] -> TL, TR, BR, BL
-  const pts=points.slice();
-  const sum=p=>p.x+p.y, diff=p=>p.x-p.y;
-  const tl=pts.reduce((a,b)=>sum(a)<sum(b)?a:b);
-  const br=pts.reduce((a,b)=>sum(a)>sum(b)?a:b);
-  const tr=pts.reduce((a,b)=>diff(a)>diff(b)?a:b);
-  const bl=pts.reduce((a,b)=>diff(a)<diff(b)?a:b);
-  return [tl,tr,br,bl];
-}
-
-async function v35DetectCardCorners(file){
-  const cv=await v35EnsureOpenCV();
+async function v36FastAlignSpec(file){
   const img=await loadImage(file);
 
-  // Detectie op kleinere resolutie, warp later op origineel.
-  const pw=650;
+  // Start met de bewezen V33-compositie.
+  const base=await v33ExactTargetCropSpec(file);
+
+  // Lichtgewicht analyse op 260px breed, volledig in gewone Canvas-JS.
+  // Geen OpenCV en geen zware AI-modellen.
+  const pw=260;
   const ph=Math.max(1,Math.round(img.height*pw/img.width));
-  const probe=document.createElement('canvas');
-  probe.width=pw; probe.height=ph;
-  const pctx=probe.getContext('2d');
-  pctx.drawImage(img,0,0,pw,ph);
+  const cv=document.createElement('canvas');
+  cv.width=pw;cv.height=ph;
+  const cx=cv.getContext('2d',{willReadFrequently:true});
+  cx.drawImage(img,0,0,pw,ph);
+  const data=cx.getImageData(0,0,pw,ph).data;
 
-  let src=cv.imread(probe);
-  let gray=new cv.Mat(), blur=new cv.Mat(), edges=new cv.Mat(), closed=new cv.Mat();
+  const lum=(x,y)=>{
+    x=Math.max(0,Math.min(pw-1,x|0));
+    y=Math.max(0,Math.min(ph-1,y|0));
+    const i=(y*pw+x)*4;
+    return data[i]*.299+data[i+1]*.587+data[i+2]*.114;
+  };
 
-  try{
-    cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
-    cv.GaussianBlur(gray,blur,new cv.Size(5,5),0);
-    cv.Canny(blur,edges,35,110);
+  // Zoek de linker/rechter kaartrand rond de verwachte kaartpositie.
+  // Alleen een eenvoudige horizontale gradientmeting, dus snel.
+  const y0=Math.round(ph*.16);
+  const y1=Math.round(ph*.70);
 
-    const kernel=cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(7,7));
-    cv.morphologyEx(edges,closed,cv.MORPH_CLOSE,kernel,new cv.Point(-1,-1),2);
-    kernel.delete();
-
-    // Alleen het gebied waarin de kaart kan staan.
-    const roiMask=cv.Mat.zeros(ph,pw,cv.CV_8UC1);
-    const rx=Math.round(pw*.08), ry=Math.round(ph*.02);
-    const rw=Math.round(pw*.84), rh=Math.round(ph*.80);
-    cv.rectangle(roiMask,new cv.Point(rx,ry),new cv.Point(rx+rw,ry+rh),new cv.Scalar(255),-1);
-    cv.bitwise_and(closed,roiMask,closed);
-    roiMask.delete();
-
-    let contours=new cv.MatVector(), hierarchy=new cv.Mat();
-    cv.findContours(closed,contours,hierarchy,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE);
-
-    let best=null, bestScore=-1;
-
-    for(let i=0;i<contours.size();i++){
-      const cnt=contours.get(i);
-      const area=cv.contourArea(cnt);
-      if(area<pw*ph*.08 || area>pw*ph*.55){cnt.delete();continue;}
-
-      const peri=cv.arcLength(cnt,true);
-      let approx=new cv.Mat();
-      cv.approxPolyDP(cnt,approx,peri*.025,true);
-
-      let pts=null;
-      if(approx.rows===4){
-        pts=[];
-        for(let r=0;r<4;r++){
-          pts.push({x:approx.intPtr(r,0)[0],y:approx.intPtr(r,0)[1]});
-        }
-      }else{
-        const rr=cv.minAreaRect(cnt);
-        const box=cv.RotatedRect.points(rr);
-        pts=box.map(p=>({x:p.x,y:p.y}));
-      }
-
-      const ordered=v35OrderCorners(pts);
-      const [tl,tr,br,bl]=ordered;
-      const top=Math.hypot(tr.x-tl.x,tr.y-tl.y);
-      const bottom=Math.hypot(br.x-bl.x,br.y-bl.y);
-      const left=Math.hypot(bl.x-tl.x,bl.y-tl.y);
-      const right=Math.hypot(br.x-tr.x,br.y-tr.y);
-      const w=(top+bottom)/2, h=(left+right)/2;
-      const ratio=w/Math.max(1,h);
-      const cx=(tl.x+tr.x+br.x+bl.x)/4;
-      const cy=(tl.y+tr.y+br.y+bl.y)/4;
-
-      // Pokémonkaart verhouding ~0.716; tolerantie voor perspectief.
-      if(ratio<.56 || ratio>.88){approx.delete();cnt.delete();continue;}
-      if(cx<pw*.25 || cx>pw*.75){approx.delete();cnt.delete();continue;}
-      if(cy<ph*.22 || cy>ph*.66){approx.delete();cnt.delete();continue;}
-
-      // Score: groot + juiste verhouding + centraal + onderkant nabij houderzone.
-      const ratioScore=1-Math.min(1,Math.abs(ratio-.716)/.20);
-      const centerScore=1-Math.min(1,Math.abs(cx-pw/2)/(pw*.32));
-      const bottomY=(br.y+bl.y)/2;
-      const bottomScore=1-Math.min(1,Math.abs(bottomY-ph*.69)/(ph*.20));
-      const score=area*(.55+.25*ratioScore+.12*centerScore+.08*bottomScore);
-
-      if(score>bestScore){
-        bestScore=score;
-        best=ordered;
-      }
-
-      approx.delete();
-      cnt.delete();
+  function edgeScore(x){
+    let s=0,n=0;
+    for(let y=y0;y<=y1;y+=3){
+      s+=Math.abs(lum(x+2,y)-lum(x-2,y));
+      n++;
     }
-
-    contours.delete(); hierarchy.delete();
-
-    if(!best){
-      // Betrouwbare fallback naar V33 wanneer contourdetectie niets vindt.
-      const base=await v33ExactTargetCropSpec(file);
-      return {
-        mode:'crop',
-        crop:base,
-        imgWidth:img.width,
-        imgHeight:img.height
-      };
-    }
-
-    // Schaal hoeken terug naar originele bronresolutie.
-    const sx=img.width/pw, sy=img.height/ph;
-    return {
-      mode:'perspective',
-      corners:best.map(p=>({x:p.x*sx,y:p.y*sy})),
-      imgWidth:img.width,
-      imgHeight:img.height
-    };
-  } finally {
-    src.delete();gray.delete();blur.delete();edges.delete();closed.delete();
+    return s/Math.max(1,n);
   }
-}
 
-async function v35WarpToExample(file, geometry, outSize){
-  const cv=await v35EnsureOpenCV();
-  const img=await loadImage(file);
-
-  const srcCanvas=document.createElement('canvas');
-  srcCanvas.width=img.width;srcCanvas.height=img.height;
-  srcCanvas.getContext('2d').drawImage(img,0,0);
-
-  let src=cv.imread(srcCanvas);
-  let dst=new cv.Mat();
-
-  try{
-    if(geometry && geometry.mode==='perspective'){
-      const c=geometry.corners;
-
-      // Exact doelvak zoals afbeelding 01.
-      // Gemeten op 1500x1500: x=219..1136, boven≈68, onder≈1344.
-      const k=outSize/1500;
-      const target=[
-        219*k, 68*k,
-        1136*k,68*k,
-        1136*k,1344*k,
-        219*k,1344*k
-      ];
-
-      const srcPts=cv.matFromArray(4,1,cv.CV_32FC2,[
-        c[0].x,c[0].y,
-        c[1].x,c[1].y,
-        c[2].x,c[2].y,
-        c[3].x,c[3].y
-      ]);
-      const dstPts=cv.matFromArray(4,1,cv.CV_32FC2,target);
-      const M=cv.getPerspectiveTransform(srcPts,dstPts);
-
-      cv.warpPerspective(
-        src,dst,M,new cv.Size(outSize,outSize),
-        cv.INTER_LINEAR,
-        cv.BORDER_CONSTANT,
-        new cv.Scalar(255,255,255,255)
-      );
-
-      srcPts.delete();dstPts.delete();M.delete();
-    }else{
-      // Fallback: oude V33 crop.
-      const b=geometry?.crop || await v33ExactTargetCropSpec(file);
-      const roi=new cv.Rect(
-        Math.max(0,Math.round(b.sx)),
-        Math.max(0,Math.round(b.sy)),
-        Math.max(1,Math.round(b.side)),
-        Math.max(1,Math.round(b.side))
-      );
-      let cut=src.roi(roi);
-      cv.resize(cut,dst,new cv.Size(outSize,outSize),0,0,cv.INTER_AREA);
-      cut.delete();
-    }
-
-    const out=document.createElement('canvas');
-    out.width=outSize;out.height=outSize;
-    cv.imshow(out,dst);
-    return out;
-  } finally {
-    src.delete();dst.delete();
+  let left=Math.round(pw*.20), leftScore=-1;
+  for(let x=Math.round(pw*.12);x<=Math.round(pw*.36);x++){
+    const s=edgeScore(x);
+    if(s>leftScore){leftScore=s;left=x;}
   }
+
+  let right=Math.round(pw*.80), rightScore=-1;
+  for(let x=Math.round(pw*.64);x<=Math.round(pw*.88);x++){
+    const s=edgeScore(x);
+    if(s>rightScore){rightScore=s;right=x;}
+  }
+
+  const width=right-left;
+  if(width<pw*.40 || width>pw*.78 || leftScore<7 || rightScore<7){
+    return base;
+  }
+
+  // Correctie ten opzichte van de verwachte V33-kaartbreedte.
+  const detectedCenter=(left+right)/2;
+  const targetCenter=pw*.50;
+  const detectedWidth=width;
+  const targetWidth=pw*.61;
+
+  // Alleen kleine correcties toestaan. Dit houdt V33 als veilige basis.
+  const centerDelta=(detectedCenter-targetCenter)/pw;
+  const scaleDelta=detectedWidth/targetWidth;
+
+  let side=base.side;
+  let sx=base.sx;
+  let sy=base.sy;
+
+  // Kaart te groot in bron => iets kleiner cropvenster nodig.
+  if(scaleDelta>.86 && scaleDelta<1.16){
+    side=base.side/scaleDelta;
+  }
+
+  // Kaart naar rechts gefotografeerd => cropvenster ook naar rechts.
+  sx += base.side*centerDelta;
+
+  // Zoek bovenrand grofweg met verticale gradient.
+  function horizontalScore(y){
+    let s=0,n=0;
+    for(let x=Math.max(2,left);x<=Math.min(pw-3,right);x+=3){
+      s+=Math.abs(lum(x,y+2)-lum(x,y-2));
+      n++;
+    }
+    return s/Math.max(1,n);
+  }
+
+  let topY=Math.round(ph*.07), topScore=-1;
+  for(let y=Math.round(ph*.02);y<=Math.round(ph*.20);y++){
+    const s=horizontalScore(y);
+    if(s>topScore){topScore=s;topY=y;}
+  }
+
+  if(topScore>7){
+    const expectedTop=ph*.055;
+    const topDelta=(topY-expectedTop)/ph;
+    sy += base.side*topDelta;
+  }
+
+  side=Math.max(base.side*.88,Math.min(base.side*1.12,side));
+  sx=Math.max(0,Math.min(sx,img.width-side));
+  sy=Math.max(0,Math.min(sy,img.height-side));
+
+  return {sx,sy,side};
 }
 
 async function v33ExactTargetCropSpec(file){
@@ -2545,46 +2420,71 @@ async function v29ExampleCropSpec(file){
   return {sx,sy,side};
 }
 
-async function render(file, kind='front', geometry=null){
+async function render(file, kind='front', sharedCrop=null){
+ const img=await loadImage(file), c=$('canvas');
  const OUT=Number($('resolution').value||1500);
- const c=$('canvas');
  c.width=OUT;c.height=OUT;
+
  const ctx=c.getContext('2d',{alpha:false,colorSpace:'srgb'});
+ ctx.clearRect(0,0,OUT,OUT);
  ctx.fillStyle='#fff';ctx.fillRect(0,0,OUT,OUT);
- ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+ ctx.globalAlpha=1;
+ ctx.globalCompositeOperation='source-over';
+ ctx.imageSmoothingEnabled=true;
+ ctx.imageSmoothingQuality='high';
+
+ // Kleuren standaard exact origineel.
+ const look=$('look')?.value||'original';
+ ctx.filter=look==='natural' ? 'brightness(1.025) contrast(1.015)' : 'none';
 
  const mode=$('cropMode').value;
 
  if(mode==='studio' || mode==='auto'){
-   const g=geometry || await v35DetectCardCorners(file);
-   const warped=await v35WarpToExample(file,g,OUT);
-   ctx.drawImage(warped,0,0,OUT,OUT);
- }else{
-   const img=await loadImage(file);
-   const side=Math.min(img.width,img.height);
-   const sx=(img.width-side)/2, sy=(img.height-side)/2;
+   const spec=sharedCrop || await v36FastAlignSpec(file);
+   const sx=Math.max(0,Math.min(spec.sx,img.width-spec.side));
+   const sy=Math.max(0,Math.min(spec.sy,img.height-spec.side));
+
+   ctx.drawImage(img,sx,sy,spec.side,spec.side,0,0,OUT,OUT);
+
+ }else if(mode==='center'){
+   const side=Math.min(img.width,img.height)*0.80;
+   const sx=(img.width-side)/2;
+   const sy=Math.max(0,(img.height-side)/2-side*.08);
    ctx.drawImage(img,sx,sy,side,side,0,0,OUT,OUT);
+
+ }else{
+   const scale=Math.min(OUT/img.width,OUT/img.height);
+   const w=img.width*scale,h=img.height*scale;
+   ctx.drawImage(img,(OUT-w)/2,(OUT-h)/2,w,h);
  }
 
- // Geen kleurcorrectie. Alleen optioneel subtiele scherpte.
+ ctx.filter='none';
+
+ // Alleen lichte scherpte; geen kleurverandering.
  if($('sharpness')?.value==='subtle') applySubtleSharpen(c);
 
- // Logo als allerlaatste layer.
+ // Logo als allerlaatste layer, rechtsonder en bewust over kaart/houder.
  if(watermarkImg){
-   const pct=Number($('wmSize').value||25)/100;
+   const pct=Number($('wmSize').value||28)/100;
    const w=OUT*pct;
    const h=w*(watermarkImg.height/watermarkImg.width);
    const scale=OUT/1000;
-   const x=OUT-w-Number($('wmRight').value||18)*scale;
-   const y=OUT-h-Number($('wmBottom').value||18)*scale;
+   const x=OUT-w-Number($('wmRight').value||20)*scale;
+   const y=OUT-h-Number($('wmBottom').value||20)*scale;
+
    ctx.save();
+   ctx.globalCompositeOperation='source-over';
    ctx.globalAlpha=Number($('wmOpacity').value||35)/100;
    ctx.drawImage(watermarkImg,x,y,w,h);
    ctx.restore();
  }
 
  const fmt=$('format').value;
- return new Promise(r=>c.toBlob(r,fmt==='jpg'?'image/jpeg':'image/png',fmt==='jpg'?0.995:1));
+ return new Promise(r=>c.toBlob(
+   r,
+   fmt==='jpg'?'image/jpeg':'image/png',
+   fmt==='jpg'?0.995:1
+ ));
 }
 $('download').onclick=async()=>{
  if(!pairs.length){
@@ -2609,13 +2509,13 @@ $('download').onclick=async()=>{
      const base=`${formatNum(p.num)}`;
      const prefix=zipLayout==='folders' ? `${folderName}/` : '';
 
-     const frontBlob=p.processedFront || await render(p.front,'front',p.frontGeometry||null);
+     const frontBlob=p.processedFront || await render(p.front,'front',p.frontCrop||null);
      zip.file(`${prefix}${base} - Voorkant.${ext}`,frontBlob);
      done++;
      $('bar').style.width=(done/total*100)+'%';
 
      if(p.back){
-       const backBlob=p.processedBack || await render(p.back,'back',p.backGeometry||null);
+       const backBlob=p.processedBack || await render(p.back,'back',p.backCrop||null);
        zip.file(`${prefix}${base} - Achterkant.${ext}`,backBlob);
        done++;
        $('bar').style.width=(done/total*100)+'%';

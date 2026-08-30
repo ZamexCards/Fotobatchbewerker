@@ -1,0 +1,22 @@
+ZamexCards Fotobatchbewerker V36
+
+Waarom V36:
+V35 kon de browser laten vastlopen omdat OpenCV.js te zwaar was voor deze workflow.
+
+V36 gebruikt daarom:
+- de bewezen V33-compositie als basis;
+- een lichte Canvas-analyse per foto;
+- kleine automatische correctie van links/rechts;
+- kleine automatische correctie van hoogte;
+- kleine automatische correctie van schaal/afstand;
+- géén OpenCV;
+- géén zware AI;
+- géén betaalde API.
+
+Belangrijk:
+De automatische correctie mag maar beperkt afwijken van V33.
+Als de detectie niet betrouwbaar is, gebruikt V36 gewoon de bewezen V33-crop.
+
+Doel:
+zoveel mogelijk foto's automatisch richting afbeelding 01 brengen,
+zonder dat de pagina vastloopt.
