@@ -1,0 +1,27 @@
+ZamexCards Fotobatchbewerker V35
+
+Deze versie is gebouwd voor foto's die NIET allemaal exact hetzelfde zijn gefotografeerd.
+
+Nieuw:
+- detecteert per foto automatisch de vier randen/hoeken van de kaart;
+- corrigeert links/rechts-verschil;
+- corrigeert hoger/lager gefotografeerde kaarten;
+- corrigeert schaal/afstand;
+- corrigeert kleine rotatie;
+- corrigeert perspectief / scheef gefotografeerde kaarten;
+- projecteert iedere kaart daarna naar exact hetzelfde doelvak als afbeelding 01;
+- voor- en achterkant worden onafhankelijk gemeten;
+- originele kleuren worden niet aangepast;
+- eigen logo blijft als laatste layer over de afbeelding.
+
+Doelvak op 1500x1500:
+links 219 px
+rechts 1136 px
+boven 68 px
+onder 1344 px
+
+Techniek:
+OpenCV.js wordt bij de eerste verwerking automatisch geladen in de browser.
+Er is geen betaalde API en geen installatie nodig.
+
+Als de kaartcontour een keer niet betrouwbaar gevonden wordt, valt V35 terug op de bewezen V33-compositie.
