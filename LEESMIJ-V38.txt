@@ -1,0 +1,10 @@
+ZamexCards Fotobatchbewerker V38
+
+V38 veilige rotatiecorrectie:
+- V33/V36 compositie blijft de basis.
+- Rotatie alleen wanneer linkerzijde, rechterzijde en bovenrand dezelfde hoek bevestigen.
+- Afwijkingen kleiner dan 0,25 graden worden niet gecorrigeerd.
+- Maximaal 4 graden automatische correctie.
+- Bij twijfel: 0 graden rotatie, dus de originele V33/V36-uitvoer.
+
+Upload index.html naar GitHub Pages.

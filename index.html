@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V36 – snelle automatische uitlijning</title>
+<title>ZamexCards Fotobatchbewerker – Fotobatchbewerker V38 – lichte scheefstandcorrectie</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -212,11 +212,11 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <div>
       <label>Kaart uitsnede</label>
       <select id="cropMode"><option value="studio" selected>ZamexCards studio – kaart exact gecentreerd (aanbevolen)</option><option value="auto">Automatisch centreren op de kaart</option><option value="center">Midden vierkant uitsnijden</option><option value="fit">Hele foto behouden met witte achtergrond</option></select>
-      <div class="help">V36 gebruikt V33 als vaste veilige basis en corrigeert per foto alleen kleine verschillen in links/rechts, hoogte en schaal. Dit gebeurt volledig lokaal met lichte Canvas-berekeningen, zonder OpenCV.</div>
+      <div class="help">V38 behoudt exact de V33/V36-compositie. Een kaart wordt alleen bijgedraaid als linkerzijde, rechterzijde én bovenrand onafhankelijk dezelfde scheefstand bevestigen. Rechte kaarten blijven daardoor onaangeraakt; maximale veilige correctie is 4°.</div>
     </div>
     <div>
       <label>Kaartgegevens herkennen</label>
-      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V36 – snelle automatische uitlijning – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
+      <select id="ocrMode"><option value="hybrid" selected>Fotobatchbewerker V38 – lichte scheefstandcorrectie – Florence-2 + set/nummer + artwork (aanbevolen)</option><option value="ocr">Alleen tekstherkenning (OCR)</option><option value="off">Niet automatisch herkennen</option></select>
       <div class="help">V10 behoudt de vaste herkenning/export-volgorde van V9 en leest setcode + kaartnummer nu uit meerdere sterk vergrote vakken linksonder op de kaart.</div>
     </div>
   </div>
@@ -239,7 +239,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
   <div class="ai8box">
     <div class="ai8row">
       <span id="ai8dot" class="ai8dot"></span>
-      <strong>Fotobatchbewerker V36 – snelle automatische uitlijning</strong>
+      <strong>Fotobatchbewerker V38 – lichte scheefstandcorrectie</strong>
       <span id="ai8status">WebGPU controleren…</span>
     </div>
     <div class="ai8small">
@@ -253,7 +253,7 @@ button:disabled{opacity:.45;cursor:not-allowed!important;filter:saturate(.45)}
     <button id="prepare" class="secondary">Foto's koppelen & verwerken</button>
     <button id="download" class="primary" disabled>Maak ZIP-bestand aan</button>
   </div>
-  <div id="status" class="status">Fotobatchbewerker V36 – snelle automatische uitlijning geladen – nog geen foto's geladen.</div>
+  <div id="status" class="status">Fotobatchbewerker V38 – lichte scheefstandcorrectie geladen – nog geen foto's geladen.</div>
   <div class="progress"><div id="bar" class="bar"></div></div>
 </section>
 
@@ -343,8 +343,8 @@ $('prepare').onclick=async()=>{
      // V30: voor- en achterkant worden afzonderlijk uitgelijnd,
      // maar met exact dezelfde DOEL-compositie.
      // Zo worden kleine verschuivingen tussen de twee foto's gecorrigeerd.
-     p.frontCrop=await v36FastAlignSpec(p.front);
-     p.backCrop=p.back ? await v36FastAlignSpec(p.back) : null;
+     p.frontCrop=await v37FastAlignSpec(p.front);
+     p.backCrop=p.back ? await v37FastAlignSpec(p.back) : null;
 
      p.processedFront=await render(p.front,'front',p.frontCrop);
      done++;
@@ -2064,6 +2064,89 @@ function applySubtleSharpen(canvas){
 
 
 
+
+async function v38SafeAlignSpec(file){
+  const img=await loadImage(file);
+
+  // V38: V33/V36 blijft altijd de basis. Rotatie gebeurt ALLEEN bij 3-voudige bevestiging.
+  const base=await v36FastAlignSpec(file);
+
+  const pw=320;
+  const ph=Math.max(1,Math.round(img.height*pw/img.width));
+  const cv=document.createElement('canvas');
+  cv.width=pw;cv.height=ph;
+  const cx=cv.getContext('2d',{willReadFrequently:true});
+  cx.drawImage(img,0,0,pw,ph);
+  const data=cx.getImageData(0,0,pw,ph).data;
+
+  const lum=(x,y)=>{
+    x=Math.max(0,Math.min(pw-1,x|0));
+    y=Math.max(0,Math.min(ph-1,y|0));
+    const i=(y*pw+x)*4;
+    return data[i]*.299+data[i+1]*.587+data[i+2]*.114;
+  };
+  const gradX=(x,y)=>Math.abs(lum(x+2,y)-lum(x-2,y));
+  const gradY=(x,y)=>Math.abs(lum(x,y+2)-lum(x,y-2));
+  const regress=(pts, xKey, yKey)=>{
+    if(pts.length<6)return null;
+    const mx=pts.reduce((a,p)=>a+p[xKey],0)/pts.length;
+    const my=pts.reduce((a,p)=>a+p[yKey],0)/pts.length;
+    let num=0,den=0;
+    for(const p of pts){num+=(p[xKey]-mx)*(p[yKey]-my);den+=(p[xKey]-mx)*(p[xKey]-mx);}
+    return den>0 ? num/den : null;
+  };
+
+  // 1 + 2: linker- EN rechterkaartzijde onafhankelijk meten.
+  const rows=[];
+  const yStart=Math.round(ph*.13), yEnd=Math.round(ph*.68);
+  const leftCenter=Math.round(pw*.22), rightCenter=Math.round(pw*.78), band=Math.round(pw*.08);
+  for(let y=yStart;y<=yEnd;y+=Math.max(5,Math.round(ph*.035))){
+    let lx=leftCenter,ls=-1,rx=rightCenter,rs=-1;
+    for(let x=Math.max(3,leftCenter-band);x<=Math.min(pw-4,leftCenter+band);x++){
+      const q=gradX(x,y); if(q>ls){ls=q;lx=x;}
+    }
+    for(let x=Math.max(3,rightCenter-band);x<=Math.min(pw-4,rightCenter+band);x++){
+      const q=gradX(x,y); if(q>rs){rs=q;rx=x;}
+    }
+    const w=rx-lx;
+    if(ls>10&&rs>10&&w>pw*.42&&w<pw*.72)rows.push({y,lx,rx});
+  }
+
+  // 3: bovenrand onafhankelijk meten. Hiermee kan een rechte kaart niet door één foute zijrand worden gedraaid.
+  const tops=[];
+  const topCenter=Math.round(ph*.075), topBand=Math.max(8,Math.round(ph*.07));
+  for(let x=Math.round(pw*.30);x<=Math.round(pw*.70);x+=Math.max(6,Math.round(pw*.04))){
+    let by=topCenter,bs=-1;
+    for(let y=Math.max(3,topCenter-topBand);y<=Math.min(ph-4,topCenter+topBand);y++){
+      const q=gradY(x,y); if(q>bs){bs=q;by=y;}
+    }
+    if(bs>10)tops.push({x,y:by});
+  }
+
+  let angle=0;
+  if(rows.length>=7 && tops.length>=7){
+    const leftSlope=regress(rows,'y','lx');   // dx/dy
+    const rightSlope=regress(rows,'y','rx'); // dx/dy
+    const topSlope=regress(tops,'x','y');    // dy/dx
+    if(leftSlope!==null&&rightSlope!==null&&topSlope!==null){
+      const aL=Math.atan(leftSlope), aR=Math.atan(rightSlope), aT=Math.atan(topSlope);
+      const aV=(aL+aR)/2;
+      const deg=x=>x*180/Math.PI;
+
+      // Zeer strenge consensus: beide zijden moeten vrijwel dezelfde hoek zien,
+      // en de bovenrand moet geometrisch dezelfde draaiing bevestigen (tegengesteld teken).
+      const sidesAgree=Math.abs(deg(aL-aR))<=0.32;
+      const topAgrees=Math.abs(deg(aV+aT))<=0.42;
+      const strongEnough=Math.abs(deg(aV))>=0.25; // rechte kaarten blijven exact onaangeraakt
+      const safeRange=Math.abs(deg(aV))<=4.0;
+
+      if(sidesAgree&&topAgrees&&strongEnough&&safeRange) angle=aV;
+    }
+  }
+
+  return {...base,angle};
+}
+
 async function v36FastAlignSpec(file){
   const img=await loadImage(file);
 
@@ -2440,11 +2523,27 @@ async function render(file, kind='front', sharedCrop=null){
  const mode=$('cropMode').value;
 
  if(mode==='studio' || mode==='auto'){
-   const spec=sharedCrop || await v36FastAlignSpec(file);
+   const spec=sharedCrop || await v38SafeAlignSpec(file);
    const sx=Math.max(0,Math.min(spec.sx,img.width-spec.side));
    const sy=Math.max(0,Math.min(spec.sy,img.height-spec.side));
+   const angle=Number(spec.angle)||0;
 
-   ctx.drawImage(img,sx,sy,spec.side,spec.side,0,0,OUT,OUT);
+   if(Math.abs(angle)>0.0001){
+     // Zelfde V33/V36 crop en schaal, alleen de kleine cameradraaiing corrigeren.
+     const scale=OUT/spec.side;
+     const sourceCx=sx+spec.side/2;
+     const sourceCy=sy+spec.side/2;
+
+     ctx.save();
+     ctx.translate(OUT/2,OUT/2);
+     ctx.rotate(-angle);
+     ctx.scale(scale,scale);
+     ctx.translate(-sourceCx,-sourceCy);
+     ctx.drawImage(img,0,0);
+     ctx.restore();
+   }else{
+     ctx.drawImage(img,sx,sy,spec.side,spec.side,0,0,OUT,OUT);
+   }
 
  }else if(mode==='center'){
    const side=Math.min(img.width,img.height)*0.80;
